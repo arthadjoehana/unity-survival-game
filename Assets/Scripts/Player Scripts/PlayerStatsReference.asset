@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8357739057ba06a4f80a89fdb3dd50f5, type: 3}
+  m_Name: PlayerStatsReference
+  m_EditorClassIdentifier: 
+  animator: {fileID: 0}
+  playerMovementScript: {fileID: 0}
+  playerAimScript: {fileID: 0}
+  maxHealth: 100
+  currentHealth: 0
+  healthBarFill: {fileID: 0}
+  healthDecreaseRateForHungerAndThirst: 0
+  maxHunger: 100
+  currentHunger: 0
+  hungerBarFill: {fileID: 0}
+  hungerDecreaseRate: 0
+  maxThirst: 100
+  currentThirst: 0
+  thirstBarFill: {fileID: 0}
+  thirstDecreaseRate: 0
+  currentArmorPoints: 0
+  stealth: 0
+  isDead: 0
