@@ -47,6 +47,7 @@ public class PlayerStatsReference : ScriptableObject
     public float currentArmorPoints;
 
     public float stealth;
+    public float crouchStealth;
 
     [HideInInspector]
     public bool isDead = false;

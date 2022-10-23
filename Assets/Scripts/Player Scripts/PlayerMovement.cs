@@ -6,6 +6,7 @@ using UnityEngine.Events;
 using UnityEngine.InputSystem;
 using Cinemachine;
 using Unity.VisualScripting;
+using ScriptableObjectArchitecture;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -95,23 +96,32 @@ public class PlayerMovement : MonoBehaviour
     private int _animIDFreeFall;
     private int _animIDMotionSpeed;
 
-
+    // references
     private PlayerInput _playerInput;
     private Animator _animator;
     private CharacterController _controller;
     private InputControl _input;
     private GameObject _mainCamera;
-    
+    private PlayerStats _playerStats;
+    //private PlayerStatsReference _playerStatsRef;
+
     //[SerializeField] private CinemachineVirtualCamera _vCam;
 
     private const float _threshold = 0.01f;
 
     private bool _hasAnimator;
 
-    private bool _canSprint;
+    //States
     public bool _isCrouched;
-    private bool _isDamaged;
     public bool _canMove;
+    public bool _canSprint;
+    public bool _canCrouch;
+    public bool _canAttack;
+    public bool _isDead;
+
+    public float totalStealth;
+    public float playerStealth;
+    public float crouchStealth;
 
     private bool IsCurrentDeviceMouse
     {
@@ -123,7 +133,7 @@ public class PlayerMovement : MonoBehaviour
 
     public enum STATE
     {
-        STAND, CROUCH, ATTACK, DAMAGED, JUMP, FALL, DEAD
+        STAND, WALK, CROUCH, SPRINT, ATTACK, DAMAGED, JUMP, FALL, DEAD
     }
     public STATE currState = STATE.STAND;
 
@@ -142,45 +152,94 @@ public class PlayerMovement : MonoBehaviour
         _hasAnimator = TryGetComponent(out _animator);
         _controller = GetComponent<CharacterController>();
         _input = GetComponent<InputControl>();
-
         _playerInput = GetComponent<PlayerInput>();
+        _playerStats = GetComponent<PlayerStats>();
 
         AssignAnimationIDs();
 
         _jumpTimeoutDelta = JumpTimeout;
         _fallTimeoutDelta = FallTimeout;
 
-        _canSprint = false;
-        _isCrouched = false;
         _canMove = true;
-
-
-
+        _canSprint = true;
+        _canCrouch = true;
     }
 
     private void Update()
     {
-        _hasAnimator = TryGetComponent(out _animator);
+
+        
+        playerStealth = _playerStats.stealth;
+        crouchStealth = _playerStats.crouchStealth; 
+        
+
+        if (_isCrouched)
+        {
+            totalStealth = playerStealth + crouchStealth;
+        }
+        else
+        {
+            totalStealth = playerStealth;
+        }
+
         GroundedCheck();
         switch (currState)
         {
             case STATE.STAND:
+                if(_input.move != Vector2.zero && !_input.crouch && !_input.sprint)
+                {
+                    Move();
+                    ChangeState(STATE.WALK);
+                }
+                if (_input.sprint)
+                {
+                    Move();
+                    ChangeState(STATE.SPRINT);
+                }
+                if (_input.crouch)
+                {
+                    Move();
+                    ChangeState(STATE.CROUCH);
+                }
+                if (_input.jump)
+                {
+                    JumpAndGravity();
+                }
+                _canMove = true;
+                _canSprint = true;
+                _canCrouch = true;
+                break;
+            case STATE.WALK:
                 Move();
                 JumpAndGravity();
-                
+                _canMove = true;
+                _canSprint = true;
+                _canCrouch = true;
                 break;
-
             case STATE.CROUCH:
                 Move();
                 JumpAndGravity();
-                
+                _canMove = true;
+                _canSprint = false;
+                _canCrouch = true;
+                break;
+            case STATE.SPRINT:
+                Move();
+                JumpAndGravity();
+                _canMove = true;
+                _canSprint = true;
+                _canCrouch = false;
+                break;
+            case STATE.ATTACK:
+
+
                 break;
             case STATE.JUMP:
-
+                JumpAndGravity();
 
                 break;
             case STATE.FALL:
-
+                JumpAndGravity();
 
                 break;
             case STATE.DEAD:
@@ -242,12 +301,10 @@ public class PlayerMovement : MonoBehaviour
             targetSpeed = 0.0f;
         }
 
-        if (_input.move.y > 0)
+        if (_input.sprint)
         {
-            if (_input.sprint)
-            {
-                targetSpeed = _isCrouched? SneakSpeed : SprintSpeed;
-            }
+            targetSpeed = SprintSpeed;
+            _canCrouch = false;
         }
 
         if (_input.crouch)
@@ -284,22 +341,23 @@ public class PlayerMovement : MonoBehaviour
         _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
         if (_animationBlend < 0.01f) _animationBlend = 0f;
 
-        Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
-
         if (_input.move != Vector2.zero)
         {
+            Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
+
             inputDirection = transform.right * _input.move.x + transform.forward * _input.move.y;
             Quaternion targetRotation = Quaternion.Euler(0, _mainCamera.transform.eulerAngles.y, 0);
             transform.rotation = targetRotation;
-            
-        }
 
-        _controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+            _controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+
+        }
 
         if (_hasAnimator)
         {
             _animator.SetFloat(_animIDSpeed, _animationBlend);
             _animator.SetFloat("X axis", _input.move.x);
+            _animator.SetFloat("Y axis", _input.move.y);
             _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
         }
     }
@@ -308,7 +366,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void JumpAndGravity()
     {
-        /*if (Grounded)
+        if (Grounded)
         {
             _fallTimeoutDelta = FallTimeout;
             if (_hasAnimator)
@@ -322,8 +380,8 @@ public class PlayerMovement : MonoBehaviour
             }
             if (_input.jump && _jumpTimeoutDelta <= 0.0f)
             {
-                
-               
+
+
                 _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
                 if (_hasAnimator)
                 {
@@ -354,7 +412,7 @@ public class PlayerMovement : MonoBehaviour
         if (_verticalVelocity < _terminalVelocity)
         {
             _verticalVelocity += Gravity * Time.deltaTime;
-        }*/
+        }
     }
 
     private static float ClampAngle(float lfAngle, float lfMin, float lfMax)

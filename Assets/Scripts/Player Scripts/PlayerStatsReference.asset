@@ -13,10 +13,8 @@ MonoBehaviour:
   m_Name: PlayerStatsReference
   m_EditorClassIdentifier: 
   animator: {fileID: 0}
-  playerMovementScript: {fileID: 0}
-  playerAimScript: {fileID: 0}
   maxHealth: 100
-  currentHealth: 0
+  currentHealth: 100
   healthBarFill: {fileID: 0}
   healthDecreaseRateForHungerAndThirst: 0
   maxHunger: 100
@@ -27,6 +25,15 @@ MonoBehaviour:
   currentThirst: 0
   thirstBarFill: {fileID: 0}
   thirstDecreaseRate: 0
+  maxSleep: 100
+  currentSleep: 0
+  SleepBarFill: {fileID: 0}
+  SleepDecreaseRate: 0
+  maxStamina: 100
+  currentStamina: 100
+  StaminaBarFill: {fileID: 0}
+  StaminaDecreaseRate: 0
   currentArmorPoints: 0
-  stealth: 0
+  stealth: 40
+  crouchStealth: 20
   isDead: 0

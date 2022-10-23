@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 
+
 public class InputControl : MonoBehaviour
 {
     [Header("Character Input Values")]

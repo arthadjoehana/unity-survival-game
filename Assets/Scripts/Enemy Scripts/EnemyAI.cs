@@ -22,7 +22,7 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private float attackDelay;
     [SerializeField] private float damageDealt;
     [SerializeField] private float rotationSpeed;
-    [SerializeField] private float detectionLevel;
+    [SerializeField] private float stealthDetection;
 
     [Header("Wandering parameters")]
 
@@ -40,28 +40,41 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private float visionDistance = 10.0f;
     [SerializeField] private float visionAngle = 45.0f;
 
-    [SerializeField] private bool playerDetected;
+    private bool hasDestination;
+    private bool isAttacking;
+    private bool playerIsNear;
+    private bool playerInRange;
+    private bool playerInFront;
+    private bool playerInSight;
+    private bool playerDetected;
+    private bool playerDetection;
+    private bool obstacle;
+    private bool noDirection;
+    private Vector3 direction;
+    private float angle;
 
-   private bool hasDestination;
-   private bool isAttacking;
-    
     private void Awake()
     {
-        /*Transform playerTransform = GameObject.FindGameObjectWithTag("Player").transform;
-
-        player = playerTransform;
-        playerStats = playerTransform.GetComponent<PlayerStats>();*/
+        playerStats = player.GetComponent<PlayerStats>();
     }
 
     private void Start()
     {
-        playerDetected = false;
+       
     }
 
     void Update()
     {
-        Vector3 direction = player.transform.position - transform.position;
-        float angle = Vector3.Angle(direction, transform.forward);
+        
+        direction = player.transform.position - transform.position;
+        angle = Vector3.Angle(direction, transform.forward);
+        playerIsNear = Vector3.Distance(player.transform.position, transform.position) < detectionRadius;
+        playerInRange = Vector3.Distance(player.transform.position, transform.position) < attackRadius;
+        playerInFront = angle < attackAngle;
+        playerInSight = direction.magnitude < visionDistance && angle < visionAngle;
+        playerDetection =  stealthDetection > playerStats.stealth;
+        noDirection = agent.remainingDistance < 0.75f && !hasDestination;
+
         switch (currState)
         {
             case STATE.IDLE:
@@ -79,7 +92,7 @@ public class EnemyAI : MonoBehaviour
                 break;
             case STATE.WANDER:
                 agent.speed = walkSpeed;
-                if (agent.remainingDistance < 0.75f && !hasDestination)
+                if (noDirection)
                 {
                     StartCoroutine(GetNewDestination());
                 }
@@ -91,11 +104,12 @@ public class EnemyAI : MonoBehaviour
                 break;
             case STATE.CHASE:
                 agent.speed = chaseSpeed;
-                if (Vector3.Distance(player.transform.position, transform.position) < detectionRadius)
+                if (playerDetected)
                 {
                     agent.SetDestination(player.transform.position);
-                    if (Vector3.Distance(player.transform.position, transform.position) < attackRadius && Vector3.Distance(player.transform.position, transform.position) < attackRadius && angle < attackAngle)
+                    if (playerInFront)
                     {
+                        
                         ChangeState(STATE.ATTACK);
                     }
                 }
@@ -105,11 +119,9 @@ public class EnemyAI : MonoBehaviour
                 }
                 break;
             case STATE.ATTACK:
-                //if player is within enemy attack radius)
-                if (Vector3.Distance(player.transform.position, transform.position) < attackRadius)
+                if (playerInRange)
                 {
-                    //if player is in front of enemy
-                    if (angle < attackAngle)
+                    if (playerInFront)
                     {
                         if (!isAttacking)
                         {
@@ -117,74 +129,39 @@ public class EnemyAI : MonoBehaviour
                         }
                     }
                     else
-                    {
-                        transform.LookAt(player.transform);
+                    {   
+                        if (!isAttacking)
+                        {
+                            Quaternion rotation = Quaternion.LookRotation(player.transform.position - transform.position);
+                            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
+                        }
                     }
                 }
                 else
                 {
                     ChangeState(STATE.CHASE);
                 }
-
-
-
-
                 break;
         }
         DetectPlayer();
-
-        /*if (Vector3.Distance(player.position, transform.position) < detectionRadius && !playerStats.isDead)
-        {
-            agent.SetDestination(player.position);
-            agent.speed = chaseSpeed;
-
-            Quaternion rot = Quaternion.LookRotation(player.position - transform.position);
-            transform.rotation = Quaternion.Slerp(transform.rotation, rot, rotationSpeed * Time.deltaTime);
-
-            if (!isAttacking)
-            {
-                if (Vector3.Distance(player.position, transform.position) < attackRadius)
-                {
-                    StartCoroutine(AttackPlayer());
-                }
-                else
-                {
-                    agent.SetDestination(player.position);
-                }
-            }
-
-        }*/
-        /*else
-        {
-            agent.speed = walkSpeed;
-
-            if (agent.remainingDistance < 0.75f && !hasDestination)
-            {
-                StartCoroutine(GetNewDestination());
-            }
-        }*/
 
         animator.SetFloat("Speed", agent.velocity.magnitude);
     }
 
     void DetectPlayer()
     {
-        Vector3 direction = player.transform.position - transform.position;
+        obstacle =  Physics.Raycast(transform.position, direction, out var hit, direction.magnitude, LayerMask.GetMask("Obstacle"));
 
-        //vision blocked by obstacles
-        if (Physics.Raycast(transform.position, direction, out var hit, direction.magnitude, LayerMask.GetMask("obstacle")))
+        if (obstacle)
         {
             Debug.Log(hit.collider.name);
             Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
             playerDetected = false;
             return;
         }
+       
         
-
-        float angle = Vector3.Angle(direction, transform.forward);
-        
-        //cone vision
-        if (direction.magnitude < visionDistance && angle < visionAngle)
+        if (playerInSight)
         {
             Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
             playerDetected = true;
@@ -192,8 +169,7 @@ public class EnemyAI : MonoBehaviour
         }
         else
         {
-            //player is near the enemy
-            if (Vector3.Distance(player.transform.position, transform.position) < detectionRadius /*&& player.stealthLevel < detectionLevel*/)
+            if (playerIsNear && playerDetection)
             {
                 Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
                 playerDetected = true;
@@ -203,10 +179,7 @@ public class EnemyAI : MonoBehaviour
                 Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
                 playerDetected = false;
             }
-            
         }
-        
-       
 
     }
 
@@ -236,8 +209,8 @@ public class EnemyAI : MonoBehaviour
         //playerStats.TakeDamage(damageDealt);
 
         yield return new WaitForSeconds(attackDelay);
-        agent.isStopped = false;
         isAttacking = false;
+        agent.isStopped = false;
     }
 
     private void OnDrawGizmos()

@@ -240,7 +240,7 @@
                 {
                     "name": "",
                     "id": "f1d3e3a8-187b-416e-9bae-5712e1cb847c",
-                    "path": "<Keyboard>/leftCtrl",
+                    "path": "<Keyboard>/c",
                     "interactions": "",
                     "processors": "",
                     "groups": "KeyboardMouse",

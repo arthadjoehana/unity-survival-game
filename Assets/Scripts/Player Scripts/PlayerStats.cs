@@ -17,7 +17,8 @@ public class PlayerStats : MonoBehaviour
     //[SerializeField] private AimBehaviourBasic playerAimScript;
 
 
-
+    public float stealth;
+    public float crouchStealth;
    
 
     
@@ -25,10 +26,13 @@ public class PlayerStats : MonoBehaviour
     void Awake()
     {
         playerStats.currentHealth = playerStats.maxHealth;
-        playerStats.currentHunger = playerStats.maxHunger;
-        playerStats.currentThirst = playerStats.maxThirst;
-        playerStats.currentSleep = playerStats.maxSleep;
         playerStats.currentStamina = playerStats.maxStamina;
+        stealth = playerStats.stealth;
+        crouchStealth = playerStats.crouchStealth;
+        //playerStats.currentHunger = playerStats.maxHunger;
+        //playerStats.currentThirst = playerStats.maxThirst;
+        //playerStats.currentSleep = playerStats.maxSleep;
+
     }
 
     public void Start()
@@ -38,12 +42,12 @@ public class PlayerStats : MonoBehaviour
 
     void Update()
     {
-        UpdateHungerAndThirstBarsFill();
+        //UpdateHungerAndThirstBarsFill();
 
-        if(Input.GetKeyDown(KeyCode.K))
+       /* if(Input.GetKeyDown(KeyCode.K))
         {
             TakeDamage(50f);
-        }
+        }*/
     }
 
     public void TakeDamage(float damage, bool overTime = false)
@@ -51,7 +55,8 @@ public class PlayerStats : MonoBehaviour
         if(overTime)
         {
             playerStats.currentHealth -= damage * Time.deltaTime;
-        } else
+        } 
+        else
         {
             playerStats.currentHealth -= damage * (1 - (playerStats.currentArmorPoints / 100));
         }
@@ -73,13 +78,13 @@ public class PlayerStats : MonoBehaviour
         
 
         // On bloque la diminution des barres de faim et soif
-        playerStats.hungerDecreaseRate = 0;
-        playerStats.thirstDecreaseRate = 0;
+        //playerStats.hungerDecreaseRate = 0;
+        //playerStats.thirstDecreaseRate = 0;
 
-        animator.SetTrigger("Die");
+        //animator.SetTrigger("Die");
     }
 
-    public void ConsumeItem(float health, float hunger, float thirst)
+    /*public void ConsumeItem(float health, float hunger, float thirst)
     {
         playerStats.currentHealth += health;
 
@@ -103,14 +108,14 @@ public class PlayerStats : MonoBehaviour
         }
 
         UpdateHealthBarFill();
-    }
+    }*/
 
     void UpdateHealthBarFill()
     {
         playerStats.healthBarFill.fillAmount = playerStats.currentHealth / playerStats.maxHealth;
     }
 
-    void UpdateHungerAndThirstBarsFill()
+    /*void UpdateHungerAndThirstBarsFill()
     {
         // Diminue la faim / soif au fil du temps
         playerStats.currentHunger -= playerStats.hungerDecreaseRate * Time.deltaTime;
@@ -129,7 +134,7 @@ public class PlayerStats : MonoBehaviour
         {
             TakeDamage((playerStats.currentHunger <= 0 && playerStats.currentThirst <= 0 ? playerStats.healthDecreaseRateForHungerAndThirst * 2 : playerStats.healthDecreaseRateForHungerAndThirst), true);
         }
-    }
+    }*/
 }
 
 internal class playerMovement
