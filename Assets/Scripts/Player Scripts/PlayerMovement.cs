@@ -114,7 +114,7 @@ public class PlayerMovement : MonoBehaviour
     public bool _canAttack;
 
     public float totalStealth;
-    public float playerStealth;
+    public float baseStealth;
     public float crouchStealth;
 
     private bool IsCurrentDeviceMouse
@@ -153,7 +153,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void Start()
     {
-       
+        baseStealth = _playerStatsRef.baseStealth;
+        crouchStealth = _playerStatsRef.crouchStealth;
 
         _jumpTimeoutDelta = JumpTimeout;
         _fallTimeoutDelta = FallTimeout;
@@ -164,18 +165,17 @@ public class PlayerMovement : MonoBehaviour
     }
 
     private void Update()
-    {      
-        playerStealth = _playerStats.stealth;
-        crouchStealth = _playerStats.crouchStealth; 
+    {
+        totalStealth = baseStealth + crouchStealth;
         
 
         if (_isCrouched)
         {
-            totalStealth = playerStealth + crouchStealth;
+            totalStealth = baseStealth + crouchStealth;
         }
         else
         {
-            totalStealth = playerStealth;
+            totalStealth = baseStealth;
         }
 
         GroundedCheck();

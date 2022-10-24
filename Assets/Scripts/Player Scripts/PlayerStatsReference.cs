@@ -18,7 +18,7 @@ public class PlayerStatsReference : ScriptableObject
 
     public float currentArmorPoints;
 
-    public float stealth;
+    public float baseStealth;
     public float crouchStealth;
 
     public float attack;
