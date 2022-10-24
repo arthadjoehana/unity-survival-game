@@ -18,8 +18,8 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("How fast the character turns to face movement direction")]
     [Range(0.0f, 0.3f)]
     public float RotationSpeed = 0.12f;
-    private float _targetRotation = 0.0f;
-    private float _rotationVelocity;
+    private float targetRotation = 0.0f;
+    private float rotationVelocity;
 
     [Tooltip("Acceleration and deceleration")]
     public float SpeedChangeRate = 10.0f;
@@ -70,14 +70,14 @@ public class PlayerMovement : MonoBehaviour
     private float _cinemachineTargetPitch;
 
     // player
-    private float _speed;
-    private float _animationBlend;
-    private float _verticalVelocity;
-    private float _terminalVelocity = 53.0f;
+    private float speed;
+    private float animationBlend;
+    private float verticalVelocity;
+    private float terminalVelocity = 53.0f;
 
     // timeout deltatime
-    private float _jumpTimeoutDelta;
-    private float _fallTimeoutDelta;
+    private float jumpTimeoutDelta;
+    private float fallTimeoutDelta;
 
     // animation IDs
     private int _animIDSpeed;
@@ -105,17 +105,18 @@ public class PlayerMovement : MonoBehaviour
     private bool _hasAnimator;
 
     //States
-    public bool _isCrouched;
-    public bool _isDead;
+    public bool isCrouched;
+    public bool isDead;
 
-    public bool _canMove;
-    public bool _canSprint;
-    public bool _canCrouch;
-    public bool _canAttack;
+    public bool canMove;
+    public bool canSprint;
+    public bool canCrouch;
+    public bool canAttack;
 
     public float totalStealth;
     public float baseStealth;
     public float crouchStealth;
+    public float noise;
 
     private bool IsCurrentDeviceMouse
     {
@@ -156,20 +157,20 @@ public class PlayerMovement : MonoBehaviour
         baseStealth = _playerStatsRef.baseStealth;
         crouchStealth = _playerStatsRef.crouchStealth;
 
-        _jumpTimeoutDelta = JumpTimeout;
-        _fallTimeoutDelta = FallTimeout;
+        jumpTimeoutDelta = JumpTimeout;
+        fallTimeoutDelta = FallTimeout;
 
-        _canMove = true;
-        _canSprint = true;
-        _canCrouch = true;
+        canMove = true;
+        canSprint = true;
+        canCrouch = true;
     }
 
     private void Update()
     {
-        totalStealth = baseStealth + crouchStealth;
+        totalStealth = baseStealth - noise;
         
 
-        if (_isCrouched)
+        if (isCrouched)
         {
             totalStealth = baseStealth + crouchStealth;
         }
@@ -185,6 +186,7 @@ public class PlayerMovement : MonoBehaviour
         switch (currState)
         {
             case STATE.STAND:
+                noise = 0f;
                 if(_input.move != Vector2.zero)
                 {
                     ChangeState(STATE.WALK);
@@ -194,14 +196,15 @@ public class PlayerMovement : MonoBehaviour
                     ChangeState(STATE.CROUCH);
                 }
                 
-                _canMove = true;
-                _canSprint = true;
-                _canCrouch = true;
+                canMove = true;
+                canSprint = true;
+                canCrouch = true;
                 break;
 
             case STATE.WALK:
                 if (_input.move != Vector2.zero)
                 {
+                    noise = 10f;
                     if (_input.sprint)
                     {
                         ChangeState(STATE.SPRINT);
@@ -215,39 +218,34 @@ public class PlayerMovement : MonoBehaviour
                 {
                     ChangeState(STATE.CROUCH);
                 }
-                _canMove = true;
-                _canSprint = true;
-                _canCrouch = true;
+                canMove = true;
+                canSprint = true;
+                canCrouch = true;
                 break;
 
             case STATE.CROUCH:
-                if (_input.crouch)
-                {
-                    if (_input.move != Vector2.zero)
-                    {
-                        if (_input.sprint)
-                        {
-                            ChangeState(STATE.SPRINT);
-                        }
-                    }
-                }
-                else
+                noise = 0f;
+                if (!_input.crouch)
                 {
                     ChangeState(STATE.STAND);
                 }
-                _canMove = true;
-                _canSprint = false;
-                _canCrouch = true;
+                canMove = true;
+                canSprint = false;
+                canCrouch = true;
                 break;
 
             case STATE.SPRINT:
+                if (_input.move != Vector2.zero)
+                {
+                    noise = 20f;
+                }
                 if (!_input.sprint)
                 {
                     ChangeState(STATE.STAND);
                 }
-                _canMove = true;
-                _canSprint = true;
-                _canCrouch = false;
+                canMove = true;
+                canSprint = true;
+                canCrouch = false;
                 break;
 
             case STATE.ATTACK:
@@ -306,7 +304,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void Move()
     {
-        float targetSpeed = _isCrouched? SneakSpeed : MoveSpeed;
+        float targetSpeed = isCrouched? SneakSpeed : MoveSpeed;
         // camView = _vCam.GetCinemachineComponent<Cinemachine3rdPersonFollow>();
 
         if (_input.move == Vector2.zero)
@@ -314,21 +312,21 @@ public class PlayerMovement : MonoBehaviour
             targetSpeed = 0.0f;
         }
 
-        if (_input.sprint)
+        if (_input.sprint && canSprint)
         {
             targetSpeed = SprintSpeed;
-            _canCrouch = false;
+            canCrouch = false;
         }
 
-        if (_input.crouch)
+        if (_input.crouch && canCrouch)
         {
-            _isCrouched = true;
+            isCrouched = true;
             _animator.SetBool(_animIDCrouched, true);
             //camView.ShoulderOffset.y = -0.5f ;
         }
         else
         {
-            _isCrouched = false;
+            isCrouched = false;
             _animator.SetBool(_animIDCrouched, false);
             //camView.ShoulderOffset.y = 0f;
         }
@@ -340,31 +338,31 @@ public class PlayerMovement : MonoBehaviour
         if (currentHorizontalSpeed < targetSpeed - speedOffset ||
             currentHorizontalSpeed > targetSpeed + speedOffset)
         {
-            _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude,
+            speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude,
                 Time.deltaTime * SpeedChangeRate);
-            _speed = Mathf.Round(_speed * 1000f) / 1000f;
+            speed = Mathf.Round(speed * 1000f) / 1000f;
         }
         else
         {
-            _speed = targetSpeed;
+            speed = targetSpeed;
         }
 
-        _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
-        if (_animationBlend < 0.01f) _animationBlend = 0f;
+        animationBlend = Mathf.Lerp(animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
+        if (animationBlend < 0.01f) animationBlend = 0f;
 
         if (_input.move != Vector2.zero)
         {
             Vector3 inputDirection = transform.right * _input.move.x + transform.forward * _input.move.y;
-            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref _rotationVelocity, RotationSpeed);
+            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref rotationVelocity, RotationSpeed);
             Quaternion targetRotation = Quaternion.Euler(0, rotation, 0);
             transform.rotation = targetRotation;
 
-            _controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+            _controller.Move(inputDirection.normalized * (speed * Time.deltaTime) + new Vector3(0.0f, verticalVelocity, 0.0f) * Time.deltaTime);
         }
 
         if (_hasAnimator)
         {
-            _animator.SetFloat(_animIDSpeed, _animationBlend);
+            _animator.SetFloat(_animIDSpeed, animationBlend);
             _animator.SetFloat("X axis", _input.move.x);
             _animator.SetFloat("Y axis", _input.move.y);
             _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
@@ -378,7 +376,7 @@ public class PlayerMovement : MonoBehaviour
         if (Grounded)
         {
             // reset the fall timeout timer
-            _fallTimeoutDelta = FallTimeout;
+            fallTimeoutDelta = FallTimeout;
 
             // update animator if using character
             if (_hasAnimator)
@@ -388,16 +386,16 @@ public class PlayerMovement : MonoBehaviour
             }
 
             // stop our velocity dropping infinitely when grounded
-            if (_verticalVelocity < 0.0f)
+            if (verticalVelocity < 0.0f)
             {
-                _verticalVelocity = -2f;
+                verticalVelocity = -2f;
             }
 
             // Jump
-            if (_input.jump && _jumpTimeoutDelta <= 0.0f)
+            if (_input.jump && jumpTimeoutDelta <= 0.0f)
             {
                 // the square root of H * -2 * G = how much velocity needed to reach desired height
-                _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
+                verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
 
                 // update animator if using character
                 if (_hasAnimator)
@@ -407,20 +405,20 @@ public class PlayerMovement : MonoBehaviour
             }
 
             // jump timeout
-            if (_jumpTimeoutDelta >= 0.0f)
+            if (jumpTimeoutDelta >= 0.0f)
             {
-                _jumpTimeoutDelta -= Time.deltaTime;
+                jumpTimeoutDelta -= Time.deltaTime;
             }
         }
         else
         {
             // reset the jump timeout timer
-            _jumpTimeoutDelta = JumpTimeout;
+            jumpTimeoutDelta = JumpTimeout;
 
             // fall timeout
-            if (_fallTimeoutDelta >= 0.0f)
+            if (fallTimeoutDelta >= 0.0f)
             {
-                _fallTimeoutDelta -= Time.deltaTime;
+                fallTimeoutDelta -= Time.deltaTime;
             }
             else
             {
@@ -436,9 +434,9 @@ public class PlayerMovement : MonoBehaviour
         }
 
         // apply gravity over time if under terminal (multiply by delta time twice to linearly speed up over time)
-        if (_verticalVelocity < _terminalVelocity)
+        if (verticalVelocity < terminalVelocity)
         {
-            _verticalVelocity += Gravity * Time.deltaTime;
+            verticalVelocity += Gravity * Time.deltaTime;
         }
     }
 

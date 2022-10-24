@@ -43,7 +43,7 @@ public class InteractBehaviour : MonoBehaviour
         currentItem = item;
 
         playerAnimator.SetTrigger("Pickup");
-        _playerMovement._canMove = false;
+        _playerMovement.canMove = false;
     }
 
     public void DoHarvest(Harvestable harvestable)
@@ -60,7 +60,7 @@ public class InteractBehaviour : MonoBehaviour
 
         currentHarvestable = harvestable;
         playerAnimator.SetTrigger("Harvest");
-        _playerMovement._canMove = false;
+        _playerMovement.canMove = false;
     }
 
     // Coroutine appelée depuis l'animation "Harvesting"
@@ -103,7 +103,7 @@ public class InteractBehaviour : MonoBehaviour
     public void ReEnablePlayerMovement()
     {
         EnableToolGameObjectFromEnum(currentTool, false);
-        _playerMovement._canMove = true;
+        _playerMovement.canMove = true;
         isBusy = false;
     }
 

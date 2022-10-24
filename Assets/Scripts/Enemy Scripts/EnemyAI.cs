@@ -172,14 +172,24 @@ public class EnemyAI : MonoBehaviour
         {
             Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
             playerDetected = true;
-
         }
         else
         {
             if (playerIsNear && playerDetectionCheck)
             {
-                Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
-                playerDetected = true;
+                if (obstacle)
+                {
+                    Debug.Log(hit.collider.name);
+                    Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
+                    playerDetected = false;
+                    return;
+                }
+                else
+                {
+                    Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
+                    playerDetected = true;
+                }
+                
             }
             else
             {
