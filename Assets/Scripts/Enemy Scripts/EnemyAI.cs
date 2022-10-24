@@ -8,9 +8,10 @@ public class EnemyAI : MonoBehaviour
     [Header("References")]
 
     [SerializeField] private NavMeshAgent agent;
-    [SerializeField] private Animator animator;
     [SerializeField] private GameObject player;
-    [SerializeField] private PlayerStats playerStats;
+    [SerializeField] private Animator animator;
+    [SerializeField] private PlayerStats _playerStats;
+    [SerializeField] private PlayerMovement _playerMovement;
     [SerializeField] PlayerStatsReference _playerStatsRef;
 
     [Header("Stats")]
@@ -54,7 +55,7 @@ public class EnemyAI : MonoBehaviour
     private bool playerInFront;
     private bool playerInSight;
     private bool playerDetected;
-    private bool playerDetection;
+    private bool playerDetectionCheck;
     private bool obstacle;
     private bool noDirection;
     private Vector3 direction;
@@ -62,7 +63,8 @@ public class EnemyAI : MonoBehaviour
 
     private void Awake()
     {
-        playerStats = player.GetComponent<PlayerStats>();
+        _playerStats = player.GetComponent<PlayerStats>();
+        _playerMovement = player.GetComponent<PlayerMovement>();
     }
 
     private void Start()
@@ -78,7 +80,7 @@ public class EnemyAI : MonoBehaviour
         playerInRange = Vector3.Distance(player.transform.position, transform.position) < attackRadius;
         playerInFront = angle < attackAngle;
         playerInSight = direction.magnitude < visionDistance && angle < visionAngle;
-        playerDetection =  stealthDetection > playerStats.stealth;
+        playerDetectionCheck =  stealthDetection > _playerMovement.totalStealth;
         noDirection = agent.remainingDistance < 0.75f && !hasDestination;
 
         switch (currState)
@@ -174,7 +176,7 @@ public class EnemyAI : MonoBehaviour
         }
         else
         {
-            if (playerIsNear && playerDetection)
+            if (playerIsNear && playerDetectionCheck)
             {
                 Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
                 playerDetected = true;
