@@ -10,19 +10,16 @@ using ScriptableObjectArchitecture;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Player")]
-    [Tooltip("Move speed of the character in m/s")]
+    [Header("Player movement stats")]
     public float MoveSpeed = 3.0f;
-
-    [Tooltip("Sprint speed of the character in m/s")]
     public float SprintSpeed = 6.0f;
-
-    [Tooltip("Crouch speed of the character in m/s")]
     public float SneakSpeed = 1.0f;
 
     [Tooltip("How fast the character turns to face movement direction")]
     [Range(0.0f, 0.3f)]
-    public float RotationSmoothTime = 0.12f;
+    public float RotationSpeed = 0.12f;
+    private float _targetRotation = 0.0f;
+    private float _rotationVelocity;
 
     [Tooltip("Acceleration and deceleration")]
     public float SpeedChangeRate = 10.0f;
@@ -45,18 +42,12 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("Time required to pass before entering the fall state. Useful for walking down stairs")]
     public float FallTimeout = 0.15f;
 
-    [Header("Player Grounded")]
-    [Tooltip("If the character is grounded or not. Not part of the CharacterController built in grounded check")]
     public bool Grounded = true;
-
-    [Tooltip("Useful for rough ground")]
     public float GroundedOffset = -0.14f;
-
-    [Tooltip("The radius of the grounded check. Should match the radius of the CharacterController")]
     public float GroundedRadius = 0.28f;
 
     [Tooltip("What layers the character uses as ground")]
-    public LayerMask GroundLayers;
+    public LayerMask Ground;
 
     [Header("Cinemachine")]
     [Tooltip("The follow target set in the Cinemachine Virtual Camera that the camera will follow")]
@@ -97,13 +88,15 @@ public class PlayerMovement : MonoBehaviour
     private int _animIDMotionSpeed;
 
     // references
+
+    [SerializeField] PlayerStatsReference _playerStatsRef;
+
     private PlayerInput _playerInput;
     private Animator _animator;
     private CharacterController _controller;
     private InputControl _input;
     private GameObject _mainCamera;
     private PlayerStats _playerStats;
-    //private PlayerStatsReference _playerStatsRef;
 
     //[SerializeField] private CinemachineVirtualCamera _vCam;
 
@@ -113,11 +106,12 @@ public class PlayerMovement : MonoBehaviour
 
     //States
     public bool _isCrouched;
+    public bool _isDead;
+
     public bool _canMove;
     public bool _canSprint;
     public bool _canCrouch;
     public bool _canAttack;
-    public bool _isDead;
 
     public float totalStealth;
     public float playerStealth;
@@ -143,10 +137,9 @@ public class PlayerMovement : MonoBehaviour
         {
             _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
         }
-    }
 
-    private void Start()
-    {
+        _playerStatsRef.PlayerMovement = this;
+
         _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
 
         _hasAnimator = TryGetComponent(out _animator);
@@ -156,6 +149,11 @@ public class PlayerMovement : MonoBehaviour
         _playerStats = GetComponent<PlayerStats>();
 
         AssignAnimationIDs();
+    }
+
+    private void Start()
+    {
+       
 
         _jumpTimeoutDelta = JumpTimeout;
         _fallTimeoutDelta = FallTimeout;
@@ -166,9 +164,7 @@ public class PlayerMovement : MonoBehaviour
     }
 
     private void Update()
-    {
-
-        
+    {      
         playerStealth = _playerStats.stealth;
         crouchStealth = _playerStats.crouchStealth; 
         
@@ -183,65 +179,82 @@ public class PlayerMovement : MonoBehaviour
         }
 
         GroundedCheck();
+        Move();
+        JumpAndGravity();
+
         switch (currState)
         {
             case STATE.STAND:
-                if(_input.move != Vector2.zero && !_input.crouch && !_input.sprint)
+                if(_input.move != Vector2.zero)
                 {
-                    Move();
                     ChangeState(STATE.WALK);
-                }
-                if (_input.sprint)
-                {
-                    Move();
-                    ChangeState(STATE.SPRINT);
                 }
                 if (_input.crouch)
                 {
-                    Move();
                     ChangeState(STATE.CROUCH);
                 }
-                if (_input.jump)
+                
+                _canMove = true;
+                _canSprint = true;
+                _canCrouch = true;
+                break;
+
+            case STATE.WALK:
+                if (_input.move != Vector2.zero)
                 {
-                    JumpAndGravity();
+                    if (_input.sprint)
+                    {
+                        ChangeState(STATE.SPRINT);
+                    }
+                }
+                else
+                {
+                    ChangeState(STATE.STAND);
+                }
+                if (_input.crouch)
+                {
+                    ChangeState(STATE.CROUCH);
                 }
                 _canMove = true;
                 _canSprint = true;
                 _canCrouch = true;
                 break;
-            case STATE.WALK:
-                Move();
-                JumpAndGravity();
-                _canMove = true;
-                _canSprint = true;
-                _canCrouch = true;
-                break;
+
             case STATE.CROUCH:
-                Move();
-                JumpAndGravity();
+                if (_input.crouch)
+                {
+                    if (_input.move != Vector2.zero)
+                    {
+                        if (_input.sprint)
+                        {
+                            ChangeState(STATE.SPRINT);
+                        }
+                    }
+                }
+                else
+                {
+                    ChangeState(STATE.STAND);
+                }
                 _canMove = true;
                 _canSprint = false;
                 _canCrouch = true;
                 break;
+
             case STATE.SPRINT:
-                Move();
-                JumpAndGravity();
+                if (!_input.sprint)
+                {
+                    ChangeState(STATE.STAND);
+                }
                 _canMove = true;
                 _canSprint = true;
                 _canCrouch = false;
                 break;
+
             case STATE.ATTACK:
 
 
                 break;
-            case STATE.JUMP:
-                JumpAndGravity();
 
-                break;
-            case STATE.FALL:
-                JumpAndGravity();
-
-                break;
             case STATE.DEAD:
 
 
@@ -268,7 +281,7 @@ public class PlayerMovement : MonoBehaviour
     {
         Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset,
             transform.position.z);
-        Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers,
+        Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, Ground,
             QueryTriggerInteraction.Ignore);
 
         if (_hasAnimator) _animator.SetBool(_animIDGrounded, Grounded);
@@ -320,9 +333,7 @@ public class PlayerMovement : MonoBehaviour
             //camView.ShoulderOffset.y = 0f;
         }
 
-
         float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
-
         float speedOffset = 0.1f;
         float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
 
@@ -343,14 +354,12 @@ public class PlayerMovement : MonoBehaviour
 
         if (_input.move != Vector2.zero)
         {
-            Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
-
-            inputDirection = transform.right * _input.move.x + transform.forward * _input.move.y;
-            Quaternion targetRotation = Quaternion.Euler(0, _mainCamera.transform.eulerAngles.y, 0);
+            Vector3 inputDirection = transform.right * _input.move.x + transform.forward * _input.move.y;
+            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref _rotationVelocity, RotationSpeed);
+            Quaternion targetRotation = Quaternion.Euler(0, rotation, 0);
             transform.rotation = targetRotation;
 
             _controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
-
         }
 
         if (_hasAnimator)
@@ -368,26 +377,36 @@ public class PlayerMovement : MonoBehaviour
     {
         if (Grounded)
         {
+            // reset the fall timeout timer
             _fallTimeoutDelta = FallTimeout;
+
+            // update animator if using character
             if (_hasAnimator)
             {
                 _animator.SetBool(_animIDJump, false);
                 _animator.SetBool(_animIDFreeFall, false);
             }
+
+            // stop our velocity dropping infinitely when grounded
             if (_verticalVelocity < 0.0f)
             {
                 _verticalVelocity = -2f;
             }
+
+            // Jump
             if (_input.jump && _jumpTimeoutDelta <= 0.0f)
             {
-
-
+                // the square root of H * -2 * G = how much velocity needed to reach desired height
                 _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
+
+                // update animator if using character
                 if (_hasAnimator)
                 {
                     _animator.SetBool(_animIDJump, true);
                 }
             }
+
+            // jump timeout
             if (_jumpTimeoutDelta >= 0.0f)
             {
                 _jumpTimeoutDelta -= Time.deltaTime;
@@ -395,20 +414,28 @@ public class PlayerMovement : MonoBehaviour
         }
         else
         {
+            // reset the jump timeout timer
             _jumpTimeoutDelta = JumpTimeout;
+
+            // fall timeout
             if (_fallTimeoutDelta >= 0.0f)
             {
                 _fallTimeoutDelta -= Time.deltaTime;
             }
             else
             {
+                // update animator if using character
                 if (_hasAnimator)
                 {
                     _animator.SetBool(_animIDFreeFall, true);
                 }
             }
+
+            // if we are not grounded, do not jump
             _input.jump = false;
         }
+
+        // apply gravity over time if under terminal (multiply by delta time twice to linearly speed up over time)
         if (_verticalVelocity < _terminalVelocity)
         {
             _verticalVelocity += Gravity * Time.deltaTime;

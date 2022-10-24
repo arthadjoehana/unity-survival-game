@@ -11,6 +11,7 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private GameObject player;
     [SerializeField] private PlayerStats playerStats;
+    [SerializeField] PlayerStatsReference _playerStatsRef;
 
     [Header("Stats")]
 
@@ -36,6 +37,12 @@ public class EnemyAI : MonoBehaviour
         IDLE, WANDER, CHASE, ATTACK
     }
     public STATE currState = STATE.IDLE;
+
+    public enum BEHAVIOUR
+    {
+        IDLE, WANDER, PATROL, SCRIPTED
+    }
+    public BEHAVIOUR Behaviour;
 
     [SerializeField] private float visionDistance = 10.0f;
     [SerializeField] private float visionAngle = 45.0f;
@@ -65,7 +72,6 @@ public class EnemyAI : MonoBehaviour
 
     void Update()
     {
-        
         direction = player.transform.position - transform.position;
         angle = Vector3.Angle(direction, transform.forward);
         playerIsNear = Vector3.Distance(player.transform.position, transform.position) < detectionRadius;
@@ -84,10 +90,9 @@ public class EnemyAI : MonoBehaviour
                     ChangeState(STATE.CHASE);
                    
                 }
-                else if (Random.Range(0, 100) < 10)
+                if (Behaviour == BEHAVIOUR.WANDER)
                 {
-                    ChangeState(STATE.WANDER);
-                    
+                    ChangeState(STATE.WANDER); 
                 }
                 break;
             case STATE.WANDER:
