@@ -9,9 +9,11 @@ public class PlayerStatsReference : ScriptableObject
 {
     PlayerStats _playerStats;
     PlayerMovement _playerMovement;
+    PlayerHealth _playerHealth;
 
     public PlayerStats PlayerStats { get => _playerStats; set => _playerStats = value; }
     public PlayerMovement PlayerMovement { get => _playerMovement; set => _playerMovement = value; }
+    public PlayerHealth PlayerHealth { get => _playerHealth; set => _playerHealth = value; }
 
     public float maxHealth;
     public float currentHealth;

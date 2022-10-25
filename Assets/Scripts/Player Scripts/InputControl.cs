@@ -23,60 +23,60 @@ public class InputControl : MonoBehaviour
 
     public void OnMove(InputValue value)
     {
-        MoveInput(value.Get<Vector2>());
+        Move(value.Get<Vector2>());
     }
 
     public void OnLook(InputValue value)
     {
         if (cursorInputForLook)
         {
-            LookInput(value.Get<Vector2>());
+            Look(value.Get<Vector2>());
         }
     }
 
     public void OnJump(InputValue value)
     {
-        JumpInput(value.isPressed);
+        Jump(value.isPressed);
     }
 
     public void OnSprint(InputValue value)
     {
-        SprintInput(value.isPressed);
+        Sprint(value.isPressed);
     }
 
     public void OnCrouch(InputValue value)
     {
-        CrouchInput(value.isPressed);
+        Crouch(value.isPressed);
     }
 
 
 
-    public void MoveInput(Vector2 newMoveDirection)
+    public void Move(Vector2 newMoveDirection)
     {
         move = newMoveDirection;
     }
 
-    public void LookInput(Vector2 newLookDirection)
+    public void Look(Vector2 newLookDirection)
     {
         look = newLookDirection;
     }
 
-    public void JumpInput(bool newJumpState)
+    public void Jump(bool newJumpState)
     {
         jump = newJumpState;
     }
 
-    public void SprintInput(bool newSprintState)
+    public void Sprint(bool newSprintState)
     {
         sprint = newSprintState;
     }
 
-    public void CrouchInput(bool newCrouchState)
+    public void Crouch(bool newCrouchState)
     {
         crouch = newCrouchState;
     }
 
-    public void interactInput(bool newInteractState)
+    public void Interact(bool newInteractState)
     {
         interact = newInteractState;
     }
