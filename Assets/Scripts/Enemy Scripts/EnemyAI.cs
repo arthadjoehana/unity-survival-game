@@ -10,9 +10,11 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private GameObject player;
     [SerializeField] private Animator animator;
-    [SerializeField] private PlayerStats _playerStats;
     [SerializeField] private PlayerMovement _playerMovement;
-    [SerializeField] PlayerStatsReference _playerStatsRef;
+
+    [SerializeField] private PlayerStatsReference _playerStatsRef;
+    [SerializeField] private EnemyStatsReference _enemyStatsRef;
+    [SerializeField] private PlayerHealth _playerHealth;
 
     [Header("Stats")]
 
@@ -63,8 +65,8 @@ public class EnemyAI : MonoBehaviour
 
     private void Awake()
     {
-        _playerStats = player.GetComponent<PlayerStats>();
         _playerMovement = player.GetComponent<PlayerMovement>();
+        
     }
 
     private void Start()
@@ -90,7 +92,6 @@ public class EnemyAI : MonoBehaviour
                 if (playerDetected)
                 {
                     ChangeState(STATE.CHASE);
-                   
                 }
                 if (Behaviour == BEHAVIOUR.WANDER)
                 {
@@ -99,6 +100,7 @@ public class EnemyAI : MonoBehaviour
                 break;
             case STATE.WANDER:
                 agent.speed = walkSpeed;
+                agent.isStopped = false;
                 if (noDirection)
                 {
                     StartCoroutine(GetNewDestination());
@@ -106,17 +108,16 @@ public class EnemyAI : MonoBehaviour
                 if (playerDetected)
                 {
                     ChangeState(STATE.CHASE);
-                    
                 }
                 break;
             case STATE.CHASE:
                 agent.speed = chaseSpeed;
+                agent.isStopped = false;
                 if (playerDetected)
                 {
                     agent.SetDestination(player.transform.position);
-                    if (playerInFront)
+                    if (playerInRange)
                     {
-                        
                         ChangeState(STATE.ATTACK);
                     }
                 }
@@ -128,6 +129,7 @@ public class EnemyAI : MonoBehaviour
             case STATE.ATTACK:
                 if (playerInRange)
                 {
+                    agent.isStopped = true;
                     if (playerInFront)
                     {
                         if (!isAttacking)
@@ -146,7 +148,11 @@ public class EnemyAI : MonoBehaviour
                 }
                 else
                 {
-                    ChangeState(STATE.CHASE);
+                    agent.isStopped = false;
+                    if (!isAttacking)
+                    {
+                        ChangeState(STATE.CHASE);
+                    }
                 }
                 break;
         }
@@ -223,7 +229,7 @@ public class EnemyAI : MonoBehaviour
 
         animator.SetTrigger("Attack");
 
-        //playerStats.TakeDamage(damageDealt);
+        _playerHealth.TakeDamage();
 
         yield return new WaitForSeconds(attackDelay);
         isAttacking = false;
@@ -242,39 +248,6 @@ public class EnemyAI : MonoBehaviour
     
     public void ChangeState(STATE newState)
     {
-        switch (currState)
-        {
-            case STATE.IDLE:
-
-                break;
-            case STATE.WANDER:
-
-                break;
-            case STATE.CHASE:
-
-                break;
-            case STATE.ATTACK:
-
-                break;
-        }
-        switch (newState)
-        {
-            case STATE.IDLE:
-
-                break;
-            case STATE.WANDER:
-                agent.speed = walkSpeed;
-                agent.isStopped = false;
-                break;
-            case STATE.CHASE:
-                agent.speed = chaseSpeed;
-                agent.isStopped = false;
-                break;
-            case STATE.ATTACK:
-
-                break;
-        }
-
         currState = newState;
     }
 }

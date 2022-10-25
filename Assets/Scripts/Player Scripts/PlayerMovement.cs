@@ -6,45 +6,45 @@ using UnityEngine.Events;
 using UnityEngine.InputSystem;
 using Cinemachine;
 using Unity.VisualScripting;
-using ScriptableObjectArchitecture;
 
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Player movement stats")]
-    public float MoveSpeed = 3.0f;
-    public float SprintSpeed = 6.0f;
-    public float SneakSpeed = 1.0f;
+    public float moveSpeed = 2.0f;
+    public float sprintSpeed = 6.0f;
+    public float sneakSpeed = 1.0f;
 
     [Tooltip("How fast the character turns to face movement direction")]
     [Range(0.0f, 0.3f)]
-    public float RotationSpeed = 0.12f;
-    private float targetRotation = 0.0f;
+    public float rotationSpeed = 0.12f;
     private float rotationVelocity;
 
     [Tooltip("Acceleration and deceleration")]
-    public float SpeedChangeRate = 10.0f;
+    public float speedChangeRate = 10.0f;
 
     public AudioClip LandingAudioClip;
     public AudioClip[] FootstepAudioClips;
     [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
 
+    public float attackDelay = 1.0f;
+
     [Space(10)]
     [Tooltip("The height the player can jump")]
-    public float JumpHeight = 1.2f;
+    public float jumpHeight = 1.2f;
 
     [Tooltip("The character uses its own gravity value. The engine default is -9.81f")]
-    public float Gravity = -15.0f;
+    public float gravity = -15.0f;
 
     [Space(10)]
     [Tooltip("Time required to pass before being able to jump again. Set to 0f to instantly jump again")]
-    public float JumpTimeout = 0.50f;
+    public float jumpTimeout = 0.50f;
 
     [Tooltip("Time required to pass before entering the fall state. Useful for walking down stairs")]
-    public float FallTimeout = 0.15f;
+    public float fallTimeout = 0.15f;
 
-    public bool Grounded = true;
-    public float GroundedOffset = -0.14f;
-    public float GroundedRadius = 0.28f;
+    public bool grounded = true;
+    public float groundedOffset = -0.14f;
+    public float groundedRadius = 0.28f;
 
     [Tooltip("What layers the character uses as ground")]
     public LayerMask Ground;
@@ -70,7 +70,7 @@ public class PlayerMovement : MonoBehaviour
     private float _cinemachineTargetPitch;
 
     // player
-    private float speed;
+    public float speed;
     private float animationBlend;
     private float verticalVelocity;
     private float terminalVelocity = 53.0f;
@@ -82,21 +82,19 @@ public class PlayerMovement : MonoBehaviour
     // animation IDs
     private int _animIDSpeed;
     private int _animIDGrounded;
-    private int _animIDCrouched;
+    private int _animIDCrouch;
+    private int _animIDSprint;
     private int _animIDJump;
     private int _animIDFreeFall;
     private int _animIDMotionSpeed;
 
     // references
-
     [SerializeField] PlayerStatsReference _playerStatsRef;
-
     private PlayerInput _playerInput;
     private Animator _animator;
     private CharacterController _controller;
     private InputControl _input;
     private GameObject _mainCamera;
-    private PlayerStats _playerStats;
 
     //[SerializeField] private CinemachineVirtualCamera _vCam;
 
@@ -105,7 +103,10 @@ public class PlayerMovement : MonoBehaviour
     private bool _hasAnimator;
 
     //States
+    public bool isMoving;
     public bool isCrouched;
+    public bool isRunning;
+    public bool isAttacking;
     public bool isDead;
 
     public bool canMove;
@@ -128,7 +129,7 @@ public class PlayerMovement : MonoBehaviour
 
     public enum STATE
     {
-        STAND, WALK, CROUCH, SPRINT, ATTACK, DAMAGED, JUMP, FALL, DEAD
+        STAND, WALK, CROUCH, SPRINT, ATTACK, DAMAGED, DEAD
     }
     public STATE currState = STATE.STAND;
 
@@ -147,7 +148,6 @@ public class PlayerMovement : MonoBehaviour
         _controller = GetComponent<CharacterController>();
         _input = GetComponent<InputControl>();
         _playerInput = GetComponent<PlayerInput>();
-        _playerStats = GetComponent<PlayerStats>();
 
         AssignAnimationIDs();
     }
@@ -157,8 +157,8 @@ public class PlayerMovement : MonoBehaviour
         baseStealth = _playerStatsRef.baseStealth;
         crouchStealth = _playerStatsRef.crouchStealth;
 
-        jumpTimeoutDelta = JumpTimeout;
-        fallTimeoutDelta = FallTimeout;
+        jumpTimeoutDelta = jumpTimeout;
+        fallTimeoutDelta = fallTimeout;
 
         canMove = true;
         canSprint = true;
@@ -168,16 +168,6 @@ public class PlayerMovement : MonoBehaviour
     private void Update()
     {
         totalStealth = baseStealth - noise;
-        
-
-        if (isCrouched)
-        {
-            totalStealth = baseStealth + crouchStealth;
-        }
-        else
-        {
-            totalStealth = baseStealth;
-        }
 
         GroundedCheck();
         Move();
@@ -187,7 +177,7 @@ public class PlayerMovement : MonoBehaviour
         {
             case STATE.STAND:
                 noise = 0f;
-                if(_input.move != Vector2.zero)
+                if(isMoving)
                 {
                     ChangeState(STATE.WALK);
                 }
@@ -202,7 +192,7 @@ public class PlayerMovement : MonoBehaviour
                 break;
 
             case STATE.WALK:
-                if (_input.move != Vector2.zero)
+                if (isMoving)
                 {
                     noise = 10f;
                     if (_input.sprint)
@@ -235,7 +225,7 @@ public class PlayerMovement : MonoBehaviour
                 break;
 
             case STATE.SPRINT:
-                if (_input.move != Vector2.zero)
+                if (isMoving)
                 {
                     noise = 20f;
                 }
@@ -249,7 +239,10 @@ public class PlayerMovement : MonoBehaviour
                 break;
 
             case STATE.ATTACK:
-
+                if (!isAttacking)
+                {
+                    StartCoroutine(Attack());
+                }
 
                 break;
 
@@ -269,7 +262,8 @@ public class PlayerMovement : MonoBehaviour
     {
         _animIDSpeed = Animator.StringToHash("Speed");
         _animIDGrounded = Animator.StringToHash("Grounded");
-        _animIDCrouched = Animator.StringToHash("Crouch");
+        _animIDCrouch = Animator.StringToHash("Crouch");
+        _animIDSprint = Animator.StringToHash("Sprint");
         _animIDJump = Animator.StringToHash("Jump");
         _animIDFreeFall = Animator.StringToHash("FreeFall");
         _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
@@ -277,12 +271,12 @@ public class PlayerMovement : MonoBehaviour
 
     private void GroundedCheck()
     {
-        Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset,
+        Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - groundedOffset,
             transform.position.z);
-        Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, Ground,
+        grounded = Physics.CheckSphere(spherePosition, groundedRadius, Ground,
             QueryTriggerInteraction.Ignore);
 
-        if (_hasAnimator) _animator.SetBool(_animIDGrounded, Grounded);
+        if (_hasAnimator) _animator.SetBool(_animIDGrounded, grounded);
     }
 
     private void CameraRotation()
@@ -304,32 +298,59 @@ public class PlayerMovement : MonoBehaviour
 
     private void Move()
     {
-        float targetSpeed = isCrouched? SneakSpeed : MoveSpeed;
+        float targetSpeed = moveSpeed;
         // camView = _vCam.GetCinemachineComponent<Cinemachine3rdPersonFollow>();
 
         if (_input.move == Vector2.zero)
         {
             targetSpeed = 0.0f;
+            isMoving = false;
         }
 
         if (_input.sprint && canSprint)
         {
-            targetSpeed = SprintSpeed;
-            canCrouch = false;
+            if (_input.move != Vector2.zero)
+            {
+                targetSpeed = sprintSpeed;
+                isRunning = true;
+                canCrouch = false;
+                _animator.SetBool(_animIDSprint, true);
+                if (isMoving)
+                {
+                    targetSpeed = sprintSpeed;
+                }
+            }
+        }
+        else
+        {
+            isRunning = false;
+            canCrouch = true;
+            _animator.SetBool(_animIDSprint, false);
         }
 
         if (_input.crouch && canCrouch)
         {
             isCrouched = true;
-            _animator.SetBool(_animIDCrouched, true);
+            canSprint = false;
+            _animator.SetBool(_animIDCrouch, true);
             //camView.ShoulderOffset.y = -0.5f ;
+            if (isMoving)
+            {
+                targetSpeed = sneakSpeed;
+            }
         }
         else
         {
             isCrouched = false;
-            _animator.SetBool(_animIDCrouched, false);
+            canSprint = true;
+            _animator.SetBool(_animIDCrouch, false);
             //camView.ShoulderOffset.y = 0f;
         }
+
+
+
+
+
 
         float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
         float speedOffset = 0.1f;
@@ -339,7 +360,7 @@ public class PlayerMovement : MonoBehaviour
             currentHorizontalSpeed > targetSpeed + speedOffset)
         {
             speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude,
-                Time.deltaTime * SpeedChangeRate);
+                Time.deltaTime * speedChangeRate);
             speed = Mathf.Round(speed * 1000f) / 1000f;
         }
         else
@@ -347,17 +368,18 @@ public class PlayerMovement : MonoBehaviour
             speed = targetSpeed;
         }
 
-        animationBlend = Mathf.Lerp(animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
+        animationBlend = Mathf.Lerp(animationBlend, targetSpeed, Time.deltaTime * speedChangeRate);
         if (animationBlend < 0.01f) animationBlend = 0f;
 
         if (_input.move != Vector2.zero)
         {
-            Vector3 inputDirection = transform.right * _input.move.x + transform.forward * _input.move.y;
-            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref rotationVelocity, RotationSpeed);
+            isMoving = true;
+            Vector3 direction = transform.right * _input.move.x + transform.forward * _input.move.y;
+            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref rotationVelocity, rotationSpeed);
             Quaternion targetRotation = Quaternion.Euler(0, rotation, 0);
             transform.rotation = targetRotation;
 
-            _controller.Move(inputDirection.normalized * (speed * Time.deltaTime) + new Vector3(0.0f, verticalVelocity, 0.0f) * Time.deltaTime);
+            _controller.Move(direction.normalized * (speed * Time.deltaTime) + new Vector3(0.0f, verticalVelocity, 0.0f) * Time.deltaTime);
         }
 
         if (_hasAnimator)
@@ -369,42 +391,44 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    
+    IEnumerator Attack()
+    {
+        isAttacking = true;
+        
+
+        _animator.SetTrigger("Attack");
+
+        
+
+        yield return new WaitForSeconds(attackDelay);
+        isAttacking = false;
+        
+    }
 
     private void JumpAndGravity()
     {
-        if (Grounded)
+        if (grounded)
         {
-            // reset the fall timeout timer
-            fallTimeoutDelta = FallTimeout;
-
-            // update animator if using character
+            fallTimeoutDelta = fallTimeout;
             if (_hasAnimator)
             {
                 _animator.SetBool(_animIDJump, false);
                 _animator.SetBool(_animIDFreeFall, false);
             }
-
             // stop our velocity dropping infinitely when grounded
             if (verticalVelocity < 0.0f)
             {
                 verticalVelocity = -2f;
             }
-
-            // Jump
             if (_input.jump && jumpTimeoutDelta <= 0.0f)
             {
                 // the square root of H * -2 * G = how much velocity needed to reach desired height
-                verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
-
-                // update animator if using character
+                verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 if (_hasAnimator)
                 {
                     _animator.SetBool(_animIDJump, true);
                 }
             }
-
-            // jump timeout
             if (jumpTimeoutDelta >= 0.0f)
             {
                 jumpTimeoutDelta -= Time.deltaTime;
@@ -412,31 +436,23 @@ public class PlayerMovement : MonoBehaviour
         }
         else
         {
-            // reset the jump timeout timer
-            jumpTimeoutDelta = JumpTimeout;
-
-            // fall timeout
+            jumpTimeoutDelta = jumpTimeout;
             if (fallTimeoutDelta >= 0.0f)
             {
                 fallTimeoutDelta -= Time.deltaTime;
             }
             else
             {
-                // update animator if using character
                 if (_hasAnimator)
                 {
                     _animator.SetBool(_animIDFreeFall, true);
                 }
             }
-
-            // if we are not grounded, do not jump
             _input.jump = false;
         }
-
-        // apply gravity over time if under terminal (multiply by delta time twice to linearly speed up over time)
         if (verticalVelocity < terminalVelocity)
         {
-            verticalVelocity += Gravity * Time.deltaTime;
+            verticalVelocity += gravity * Time.deltaTime;
         }
     }
 
@@ -452,13 +468,13 @@ public class PlayerMovement : MonoBehaviour
         Color transparentGreen = new Color(0.0f, 1.0f, 0.0f, 0.35f);
         Color transparentRed = new Color(1.0f, 0.0f, 0.0f, 0.35f);
 
-        if (Grounded) Gizmos.color = transparentGreen;
+        if (grounded) Gizmos.color = transparentGreen;
         else Gizmos.color = transparentRed;
 
         // when selected, draw a gizmo in the position of, and matching radius of, the grounded collider
         Gizmos.DrawSphere(
-            new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
-            GroundedRadius);
+            new Vector3(transform.position.x, transform.position.y - groundedOffset, transform.position.z),
+            groundedRadius);
     }
 
     private void OnFootstep(AnimationEvent animationEvent)
@@ -483,24 +499,6 @@ public class PlayerMovement : MonoBehaviour
 
     public void ChangeState(STATE newState)
     {
-        switch (currState)
-        {
-            case STATE.STAND:
-
-                break;
-            case STATE.CROUCH:
-
-                break;
-        }
-        switch (newState)
-        {
-            case STATE.STAND:
-
-                break;
-            case STATE.CROUCH:
-
-                break;
-        }
         currState = newState;
     }
 }

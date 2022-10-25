@@ -15,7 +15,7 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 100
   currentArmorPoints: 0
-  baseStealth: 40
+  baseStealth: 51
   crouchStealth: 20
   attack: 0
   isDead: 0
