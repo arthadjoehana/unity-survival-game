@@ -5,7 +5,7 @@ using UnityEngine.UI;
 using UnityEngine.Events;
 using UnityEngine.InputSystem;
 using Cinemachine;
-using Unity.VisualScripting;
+
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -87,6 +87,7 @@ public class PlayerMovement : MonoBehaviour
     private int _animIDJump;
     private int _animIDFreeFall;
     private int _animIDMotionSpeed;
+    private int _animIDDeath;
 
     // references
     [SerializeField] PlayerStatsReference _playerStatsRef;
@@ -96,7 +97,7 @@ public class PlayerMovement : MonoBehaviour
     private InputControl _input;
     private GameObject _mainCamera;
 
-    //[SerializeField] private CinemachineVirtualCamera _vCam;
+    [SerializeField] GameObject _playerCameraRoot;
 
     private const float _threshold = 0.01f;
 
@@ -143,6 +144,7 @@ public class PlayerMovement : MonoBehaviour
         _playerStatsRef.PlayerMovement = this;
 
         _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+        
 
         _hasAnimator = TryGetComponent(out _animator);
         _controller = GetComponent<CharacterController>();
@@ -163,6 +165,8 @@ public class PlayerMovement : MonoBehaviour
         canMove = true;
         canSprint = true;
         canCrouch = true;
+
+        isDead = _playerStatsRef.currentHealth > 0 ? false : true;
     }
 
     private void Update()
@@ -172,6 +176,7 @@ public class PlayerMovement : MonoBehaviour
         GroundedCheck();
         Move();
         JumpAndGravity();
+        Die();
 
         switch (currState)
         {
@@ -247,7 +252,7 @@ public class PlayerMovement : MonoBehaviour
                 break;
 
             case STATE.DEAD:
-
+                canMove = false;
 
                 break;
         }
@@ -267,6 +272,7 @@ public class PlayerMovement : MonoBehaviour
         _animIDJump = Animator.StringToHash("Jump");
         _animIDFreeFall = Animator.StringToHash("FreeFall");
         _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+        _animIDDeath = Animator.StringToHash("Death");
     }
 
     private void GroundedCheck()
@@ -299,7 +305,7 @@ public class PlayerMovement : MonoBehaviour
     private void Move()
     {
         float targetSpeed = moveSpeed;
-        // camView = _vCam.GetCinemachineComponent<Cinemachine3rdPersonFollow>();
+        Vector3 camView = _playerCameraRoot.transform.position;
 
         if (_input.move == Vector2.zero)
         {
@@ -333,7 +339,9 @@ public class PlayerMovement : MonoBehaviour
             isCrouched = true;
             canSprint = false;
             _animator.SetBool(_animIDCrouch, true);
-            //camView.ShoulderOffset.y = -0.5f ;
+            _playerCameraRoot.transform.position = 
+                new Vector3(transform.position.x, 0.6f, transform.position.z);
+
             if (isMoving)
             {
                 targetSpeed = sneakSpeed;
@@ -344,7 +352,8 @@ public class PlayerMovement : MonoBehaviour
             isCrouched = false;
             canSprint = true;
             _animator.SetBool(_animIDCrouch, false);
-            //camView.ShoulderOffset.y = 0f;
+            _playerCameraRoot.transform.position =
+                new Vector3(transform.position.x, 1.3f, transform.position.z);
         }
 
 
@@ -371,7 +380,7 @@ public class PlayerMovement : MonoBehaviour
         animationBlend = Mathf.Lerp(animationBlend, targetSpeed, Time.deltaTime * speedChangeRate);
         if (animationBlend < 0.01f) animationBlend = 0f;
 
-        if (_input.move != Vector2.zero)
+        if (_input.move != Vector2.zero && canMove)
         {
             isMoving = true;
             Vector3 direction = transform.right * _input.move.x + transform.forward * _input.move.y;
@@ -454,6 +463,17 @@ public class PlayerMovement : MonoBehaviour
         {
             verticalVelocity += gravity * Time.deltaTime;
         }
+    }
+
+    public void Die()
+    {
+        if (_playerStatsRef.currentHealth <= 0)
+            if (!isDead)
+            {
+                ChangeState(STATE.DEAD);
+                _animator.SetTrigger("Death");
+                isDead = true;
+            }
     }
 
     private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
