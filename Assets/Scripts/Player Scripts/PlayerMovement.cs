@@ -96,7 +96,7 @@ public class PlayerMovement : MonoBehaviour
     private InputControl _input;
     private GameObject _mainCamera;
 
-    //[SerializeField] private CinemachineVirtualCamera _vCam;
+    [SerializeField] GameObject _playerCameraRoot;
 
     private const float _threshold = 0.01f;
 
@@ -143,6 +143,7 @@ public class PlayerMovement : MonoBehaviour
         _playerStatsRef.PlayerMovement = this;
 
         _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+        
 
         _hasAnimator = TryGetComponent(out _animator);
         _controller = GetComponent<CharacterController>();
@@ -299,7 +300,7 @@ public class PlayerMovement : MonoBehaviour
     private void Move()
     {
         float targetSpeed = moveSpeed;
-        // camView = _vCam.GetCinemachineComponent<Cinemachine3rdPersonFollow>();
+        Vector3 camView = _playerCameraRoot.transform.position;
 
         if (_input.move == Vector2.zero)
         {
@@ -333,7 +334,9 @@ public class PlayerMovement : MonoBehaviour
             isCrouched = true;
             canSprint = false;
             _animator.SetBool(_animIDCrouch, true);
-            //camView.ShoulderOffset.y = -0.5f ;
+            _playerCameraRoot.transform.position = 
+                new Vector3(transform.position.x, 0.6f, transform.position.z);
+
             if (isMoving)
             {
                 targetSpeed = sneakSpeed;
@@ -344,7 +347,8 @@ public class PlayerMovement : MonoBehaviour
             isCrouched = false;
             canSprint = true;
             _animator.SetBool(_animIDCrouch, false);
-            //camView.ShoulderOffset.y = 0f;
+            _playerCameraRoot.transform.position =
+                new Vector3(transform.position.x, 1.3f, transform.position.z);
         }
 
 

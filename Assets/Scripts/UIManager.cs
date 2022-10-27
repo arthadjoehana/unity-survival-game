@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 
-public class UIManager : MonoBehaviour
+public class UIManagerA : MonoBehaviour
 {
     [SerializeField]
     private GameObject[] UIPanels;

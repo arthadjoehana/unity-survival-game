@@ -27,6 +27,9 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private float damageDealt;
     [SerializeField] private float rotationSpeed;
     [SerializeField] private float stealthDetection;
+    [SerializeField] private float visionDistance = 20.0f;
+    [SerializeField] private float visionAngle = 60.0f;
+
 
     [Header("Wandering parameters")]
 
@@ -47,17 +50,16 @@ public class EnemyAI : MonoBehaviour
     }
     public BEHAVIOUR Behaviour;
 
-    [SerializeField] private float visionDistance = 10.0f;
-    [SerializeField] private float visionAngle = 45.0f;
-
+    private Vector3 originalPosition;
     private bool hasDestination;
     private bool isAttacking;
     private bool playerIsNear;
     private bool playerInRange;
     private bool playerInFront;
     private bool playerInSight;
+    private bool playerIsHit;
     private bool playerDetected;
-    private bool playerDetectionCheck;
+    private bool playerStealthCheck;
     private bool obstacle;
     private bool noDirection;
     private Vector3 direction;
@@ -71,7 +73,7 @@ public class EnemyAI : MonoBehaviour
 
     private void Start()
     {
-       
+        originalPosition = transform.position;
     }
 
     void Update()
@@ -82,13 +84,12 @@ public class EnemyAI : MonoBehaviour
         playerInRange = Vector3.Distance(player.transform.position, transform.position) < attackRadius;
         playerInFront = angle < attackAngle;
         playerInSight = direction.magnitude < visionDistance && angle < visionAngle;
-        playerDetectionCheck =  stealthDetection > _playerMovement.totalStealth;
+        playerStealthCheck =  stealthDetection > _playerMovement.totalStealth;
         noDirection = agent.remainingDistance < 0.75f && !hasDestination;
 
         switch (currState)
         {
             case STATE.IDLE:
-                
                 if (playerDetected)
                 {
                     ChangeState(STATE.CHASE);
@@ -113,17 +114,30 @@ public class EnemyAI : MonoBehaviour
             case STATE.CHASE:
                 agent.speed = chaseSpeed;
                 agent.isStopped = false;
-                if (playerDetected)
+                 if (playerDetected)
                 {
                     agent.SetDestination(player.transform.position);
-                    if (playerInRange)
-                    {
-                        ChangeState(STATE.ATTACK);
-                    }
+                    
+                }
+                else if(playerIsNear)
+                {
+                    agent.SetDestination(player.transform.position);
                 }
                 else
                 {
-                    ChangeState(STATE.WANDER);
+                    if (Behaviour == BEHAVIOUR.WANDER)
+                    {
+                        ChangeState(STATE.WANDER);
+                    }
+                    else
+                    {
+                        agent.SetDestination(originalPosition);
+                        ChangeState(STATE.IDLE);
+                    }
+                }
+                if (playerInRange)
+                {
+                    ChangeState(STATE.ATTACK);
                 }
                 break;
             case STATE.ATTACK:
@@ -173,7 +187,6 @@ public class EnemyAI : MonoBehaviour
             return;
         }
        
-        
         if (playerInSight)
         {
             Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
@@ -181,7 +194,7 @@ public class EnemyAI : MonoBehaviour
         }
         else
         {
-            if (playerIsNear && playerDetectionCheck)
+            if (playerIsNear && playerStealthCheck)
             {
                 if (obstacle)
                 {
@@ -194,8 +207,7 @@ public class EnemyAI : MonoBehaviour
                 {
                     Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
                     playerDetected = true;
-                }
-                
+                }   
             }
             else
             {
@@ -203,7 +215,6 @@ public class EnemyAI : MonoBehaviour
                 playerDetected = false;
             }
         }
-
     }
 
     IEnumerator GetNewDestination()
@@ -228,8 +239,11 @@ public class EnemyAI : MonoBehaviour
         agent.isStopped = true;
 
         animator.SetTrigger("Attack");
-
-        _playerHealth.TakeDamage();
+        if (playerIsHit)
+        {
+            _playerHealth.TakeDamage();
+        }
+        
 
         yield return new WaitForSeconds(attackDelay);
         isAttacking = false;
