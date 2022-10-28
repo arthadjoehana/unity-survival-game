@@ -18,13 +18,14 @@ public class EnemyAI : MonoBehaviour
 
     [Header("Stats")]
 
+    [SerializeField] public float damage;
+
     [SerializeField] private float walkSpeed;
     [SerializeField] private float chaseSpeed;
     [SerializeField] private float detectionRadius;
     [SerializeField] private float attackRadius;
     [SerializeField] private float attackAngle = 30.0f;
     [SerializeField] private float attackDelay;
-    [SerializeField] private float damageDealt;
     [SerializeField] private float rotationSpeed;
     [SerializeField] private float stealthDetection;
     [SerializeField] private float visionDistance = 20.0f;
@@ -40,9 +41,9 @@ public class EnemyAI : MonoBehaviour
 
     public enum STATE
     {
-        IDLE, WANDER, CHASE, ATTACK
+        BEHAVIOUR, CHASE, ATTACK, RETURNTOPOSITION, WANDER, PATROL, SCRIPTED
     }
-    public STATE currState = STATE.IDLE;
+    public STATE currState = STATE.BEHAVIOUR;
 
     public enum BEHAVIOUR
     {
@@ -59,25 +60,32 @@ public class EnemyAI : MonoBehaviour
     private bool playerInSight;
     private bool playerIsHit;
     private bool playerDetected;
-    private bool playerStealthCheck;
+    private bool playerStealthCheck; 
+    private bool playerIsAlive;
     private bool obstacle;
     private bool noDirection;
     private Vector3 direction;
     private float angle;
+    
 
     private void Awake()
     {
         _playerMovement = player.GetComponent<PlayerMovement>();
-        
+
+        damage = _enemyStatsRef.damage;
+
+
     }
 
     private void Start()
     {
         originalPosition = transform.position;
+        playerIsAlive = true;
     }
 
     void Update()
     {
+        playerIsAlive = _playerHealth.playerHealth > 0 ? true : false;
         direction = player.transform.position - transform.position;
         angle = Vector3.Angle(direction, transform.forward);
         playerIsNear = Vector3.Distance(player.transform.position, transform.position) < detectionRadius;
@@ -89,16 +97,36 @@ public class EnemyAI : MonoBehaviour
 
         switch (currState)
         {
-            case STATE.IDLE:
-                if (playerDetected)
+            case STATE.BEHAVIOUR:
+                ChangeStateBasedOnConf();
+                break;
+
+            case STATE.CHASE:
+                agent.speed = chaseSpeed;
+                agent.isStopped = false;
+                if (playerDetected && playerIsAlive)
                 {
-                    ChangeState(STATE.CHASE);
+                    agent.SetDestination(player.transform.position);
+                    
                 }
-                if (Behaviour == BEHAVIOUR.WANDER)
+                else if(playerIsNear && playerIsAlive)
                 {
-                    ChangeState(STATE.WANDER); 
+                    agent.SetDestination(player.transform.position);
+                }
+                else
+                {
+                    ChangeStateBasedOnConf();
+                }
+                if (playerInRange && playerIsAlive)
+                {
+                    ChangeState(STATE.ATTACK);
                 }
                 break;
+
+            case STATE.RETURNTOPOSITION:
+                agent.SetDestination(originalPosition);
+                break;
+
             case STATE.WANDER:
                 agent.speed = walkSpeed;
                 agent.isStopped = false;
@@ -106,67 +134,49 @@ public class EnemyAI : MonoBehaviour
                 {
                     StartCoroutine(GetNewDestination());
                 }
-                if (playerDetected)
+                if (playerDetected && playerIsAlive)
                 {
                     ChangeState(STATE.CHASE);
                 }
                 break;
-            case STATE.CHASE:
-                agent.speed = chaseSpeed;
-                agent.isStopped = false;
-                 if (playerDetected)
-                {
-                    agent.SetDestination(player.transform.position);
-                    
-                }
-                else if(playerIsNear)
-                {
-                    agent.SetDestination(player.transform.position);
-                }
-                else
-                {
-                    if (Behaviour == BEHAVIOUR.WANDER)
-                    {
-                        ChangeState(STATE.WANDER);
-                    }
-                    else
-                    {
-                        agent.SetDestination(originalPosition);
-                        ChangeState(STATE.IDLE);
-                    }
-                }
-                if (playerInRange)
-                {
-                    ChangeState(STATE.ATTACK);
-                }
+
+            case STATE.PATROL:
                 break;
+
+            case STATE.SCRIPTED:
+                break;
+
             case STATE.ATTACK:
-                if (playerInRange)
+                if(playerIsAlive)
                 {
-                    agent.isStopped = true;
-                    if (playerInFront)
+                    if (playerInRange)
                     {
-                        if (!isAttacking)
+                        agent.isStopped = true;
+                        if (playerInFront)
                         {
-                            StartCoroutine(AttackPlayer());
+                            if (!isAttacking)
+                            {
+                                StartCoroutine(AttackPlayer());
+                            }
                         }
-                    }
-                    else
-                    {   
-                        if (!isAttacking)
+                        else
                         {
                             Quaternion rotation = Quaternion.LookRotation(player.transform.position - transform.position);
                             transform.rotation = Quaternion.Slerp(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
                         }
                     }
+                    else
+                    {
+                        agent.isStopped = false;
+                        if (playerIsAlive)
+                        {
+                            ChangeState(STATE.CHASE);
+                        }
+                    }
                 }
                 else
                 {
-                    agent.isStopped = false;
-                    if (!isAttacking)
-                    {
-                        ChangeState(STATE.CHASE);
-                    }
+                    ChangeStateBasedOnConf();
                 }
                 break;
         }
@@ -175,46 +185,80 @@ public class EnemyAI : MonoBehaviour
         animator.SetFloat("Speed", agent.velocity.magnitude);
     }
 
+    private void ChangeStateBasedOnConf()
+    {
+        switch (Behaviour)
+        {
+            case BEHAVIOUR.IDLE:
+                ChangeState(STATE.RETURNTOPOSITION);
+                break;
+            case BEHAVIOUR.WANDER:
+                ChangeState(STATE.WANDER);
+                break;
+            case BEHAVIOUR.PATROL:
+                ChangeState(STATE.PATROL);
+                break;
+            case BEHAVIOUR.SCRIPTED:
+                ChangeState(STATE.RETURNTOPOSITION);
+                break;
+            default:
+                break;
+        }
+    }
+
     void DetectPlayer()
     {
         obstacle =  Physics.Raycast(transform.position, direction, out var hit, direction.magnitude, LayerMask.GetMask("Obstacle"));
 
-        if (obstacle)
+        if (_playerHealth.playerHealth > 0)
         {
-            Debug.Log(hit.collider.name);
-            Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
-            playerDetected = false;
-            return;
-        }
-       
-        if (playerInSight)
-        {
-            Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
-            playerDetected = true;
-        }
-        else
-        {
-            if (playerIsNear && playerStealthCheck)
+            if (obstacle)
             {
-                if (obstacle)
-                {
-                    Debug.Log(hit.collider.name);
-                    Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
-                    playerDetected = false;
-                    return;
-                }
-                else
-                {
-                    Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
-                    playerDetected = true;
-                }   
+                Debug.Log(hit.collider.name);
+                Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
+                playerDetected = false;
+                return;
+            }
+
+            if (playerInSight)
+            {
+                Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
+                playerDetected = true;
+            }
+            if (playerInRange)
+            {
+                Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
+                playerDetected = true;
             }
             else
             {
-                Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
-                playerDetected = false;
+                if (playerIsNear && playerStealthCheck)
+                {
+                    if (obstacle)
+                    {
+                        Debug.Log(hit.collider.name);
+                        Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
+                        playerDetected = false;
+                        return;
+                    }
+                    else
+                    {
+                        Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
+                        playerDetected = true;
+                    }
+                }
+                else
+                {
+                    Debug.DrawRay(transform.position, direction, Color.red, 0.5f);
+                    playerDetected = false;
+                }
             }
         }
+        else
+        {
+            playerDetected = false;
+        }
+
     }
 
     IEnumerator GetNewDestination()
@@ -239,15 +283,16 @@ public class EnemyAI : MonoBehaviour
         agent.isStopped = true;
 
         animator.SetTrigger("Attack");
-        if (playerIsHit)
+        _playerHealth.TakeDamage();
+        /*if (playerIsHit)
         {
             _playerHealth.TakeDamage();
         }
-        
-
+        */
+        yield return new WaitForSeconds(2);
+        agent.isStopped = false;
         yield return new WaitForSeconds(attackDelay);
         isAttacking = false;
-        agent.isStopped = false;
     }
 
     private void OnDrawGizmos()

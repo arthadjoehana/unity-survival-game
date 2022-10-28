@@ -15,6 +15,6 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 0
   healthBarFill: {fileID: 0}
-  damage: 20
+  damage: 10
   stealthDetection: 50
   isDead: 0

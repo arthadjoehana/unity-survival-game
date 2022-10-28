@@ -11,8 +11,8 @@ public class Comp_Hitbox : MonoBehaviour, IHitDetector
     private IHitResponder _hitResponder;
 
     IHitResponder IHitDetector.HitResponder { get => _hitResponder; set => _hitResponder = value; }
-    
-    public void IHitDetector.CheckHit()
+
+    public void CheckHit()
     {
         Vector3 scaledSize = new Vector3(
             _collider.size.x * transform.lossyScale.x,

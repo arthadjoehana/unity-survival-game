@@ -5,7 +5,7 @@ using UnityEngine.UI;
 using UnityEngine.Events;
 using UnityEngine.InputSystem;
 using Cinemachine;
-using Unity.VisualScripting;
+
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -87,6 +87,7 @@ public class PlayerMovement : MonoBehaviour
     private int _animIDJump;
     private int _animIDFreeFall;
     private int _animIDMotionSpeed;
+    private int _animIDDeath;
 
     // references
     [SerializeField] PlayerStatsReference _playerStatsRef;
@@ -107,6 +108,7 @@ public class PlayerMovement : MonoBehaviour
     public bool isCrouched;
     public bool isRunning;
     public bool isAttacking;
+    public bool isDefending;
     public bool isDead;
 
     public bool canMove;
@@ -129,7 +131,7 @@ public class PlayerMovement : MonoBehaviour
 
     public enum STATE
     {
-        STAND, WALK, CROUCH, SPRINT, ATTACK, DAMAGED, DEAD
+        STAND, WALK, CROUCH, SPRINT, ATTACK, DEFEND, DAMAGED, DEAD
     }
     public STATE currState = STATE.STAND;
 
@@ -164,6 +166,8 @@ public class PlayerMovement : MonoBehaviour
         canMove = true;
         canSprint = true;
         canCrouch = true;
+
+        isDead = _playerStatsRef.currentHealth > 0 ? false : true;
     }
 
     private void Update()
@@ -173,6 +177,7 @@ public class PlayerMovement : MonoBehaviour
         GroundedCheck();
         Move();
         JumpAndGravity();
+        Die();
 
         switch (currState)
         {
@@ -247,8 +252,15 @@ public class PlayerMovement : MonoBehaviour
 
                 break;
 
-            case STATE.DEAD:
+            case STATE.DEFEND:
+                if (!isDefending)
+                {
+                    
+                }
 
+                break;
+            case STATE.DEAD:
+                canMove = false;
 
                 break;
         }
@@ -268,6 +280,7 @@ public class PlayerMovement : MonoBehaviour
         _animIDJump = Animator.StringToHash("Jump");
         _animIDFreeFall = Animator.StringToHash("FreeFall");
         _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+        _animIDDeath = Animator.StringToHash("Death");
     }
 
     private void GroundedCheck()
@@ -351,11 +364,6 @@ public class PlayerMovement : MonoBehaviour
                 new Vector3(transform.position.x, 1.3f, transform.position.z);
         }
 
-
-
-
-
-
         float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
         float speedOffset = 0.1f;
         float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
@@ -375,7 +383,7 @@ public class PlayerMovement : MonoBehaviour
         animationBlend = Mathf.Lerp(animationBlend, targetSpeed, Time.deltaTime * speedChangeRate);
         if (animationBlend < 0.01f) animationBlend = 0f;
 
-        if (_input.move != Vector2.zero)
+        if (_input.move != Vector2.zero && canMove)
         {
             isMoving = true;
             Vector3 direction = transform.right * _input.move.x + transform.forward * _input.move.y;
@@ -458,6 +466,17 @@ public class PlayerMovement : MonoBehaviour
         {
             verticalVelocity += gravity * Time.deltaTime;
         }
+    }
+
+    public void Die()
+    {
+        if (_playerStatsRef.currentHealth <= 0)
+            if (!isDead)
+            {
+                ChangeState(STATE.DEAD);
+                _animator.SetTrigger("Death");
+                isDead = true;
+            }
     }
 
     private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
