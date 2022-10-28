@@ -8,6 +8,7 @@ public class InputControl : MonoBehaviour
     [Header("Character Input Values")]
     public Vector2 move;
     public Vector2 look;
+    public bool attack;
     public bool jump;
     public bool sprint;
     public bool crouch;
@@ -32,6 +33,10 @@ public class InputControl : MonoBehaviour
         {
             Look(value.Get<Vector2>());
         }
+    }
+    public void OnAttack(InputValue value)
+    {
+        Attack(value.isPressed);
     }
 
     public void OnJump(InputValue value)
@@ -59,6 +64,10 @@ public class InputControl : MonoBehaviour
     public void Look(Vector2 newLookDirection)
     {
         look = newLookDirection;
+    }
+    public void Attack(bool newAttackState)
+    {
+        attack = newAttackState;
     }
 
     public void Jump(bool newJumpState)

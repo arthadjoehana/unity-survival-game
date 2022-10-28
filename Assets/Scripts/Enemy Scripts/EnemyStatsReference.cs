@@ -14,6 +14,7 @@ public class EnemyStatsReference : ScriptableObject
     public Image healthBarFill;
 
     public float damage;
+    public float exp;
     public float stealthDetection;
     public bool isDead = false;
 }

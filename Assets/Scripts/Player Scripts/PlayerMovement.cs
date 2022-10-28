@@ -14,6 +14,11 @@ public class PlayerMovement : MonoBehaviour
     public float sprintSpeed = 6.0f;
     public float sneakSpeed = 1.0f;
 
+    public float attackCoolDown = 2.0f;
+    public float attackRadius;
+    public float attackAngle = 30.0f;
+    private float angle;
+
     [Tooltip("How fast the character turns to face movement direction")]
     [Range(0.0f, 0.3f)]
     public float rotationSpeed = 0.12f;
@@ -26,7 +31,6 @@ public class PlayerMovement : MonoBehaviour
     public AudioClip[] FootstepAudioClips;
     [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
 
-    public float attackDelay = 1.0f;
 
     [Space(10)]
     [Tooltip("The height the player can jump")]
@@ -97,6 +101,7 @@ public class PlayerMovement : MonoBehaviour
     private InputControl _input;
     private GameObject _mainCamera;
 
+    [SerializeField] private EnemyAI _enemyAI;
     [SerializeField] GameObject _playerCameraRoot;
 
     private const float _threshold = 0.01f;
@@ -104,10 +109,13 @@ public class PlayerMovement : MonoBehaviour
     private bool _hasAnimator;
 
     //States
+    public int stance;
+
     public bool isMoving;
     public bool isCrouched;
     public bool isRunning;
     public bool isAttacking;
+    public bool isDefending;
     public bool isDead;
 
     public bool canMove;
@@ -130,7 +138,7 @@ public class PlayerMovement : MonoBehaviour
 
     public enum STATE
     {
-        STAND, WALK, CROUCH, SPRINT, ATTACK, DAMAGED, DEAD
+        STAND, WALK, CROUCH, SPRINT, COMBAT, ATTACK, DEFEND, DAMAGED, DEAD
     }
     public STATE currState = STATE.STAND;
 
@@ -156,6 +164,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void Start()
     {
+        stance = 0;
         baseStealth = _playerStatsRef.baseStealth;
         crouchStealth = _playerStatsRef.crouchStealth;
 
@@ -165,18 +174,21 @@ public class PlayerMovement : MonoBehaviour
         canMove = true;
         canSprint = true;
         canCrouch = true;
-
+        isAttacking = false;
         isDead = _playerStatsRef.currentHealth > 0 ? false : true;
     }
 
     private void Update()
     {
         totalStealth = baseStealth - noise;
-
+        direction = transform.position - transform.position;
+        angle = Vector3.Angle(direction, transform.forward);
+        EnemyInFront = angle < attackAngle;
         GroundedCheck();
         Move();
         JumpAndGravity();
         Die();
+        StartCoroutine(Attack());
 
         switch (currState)
         {
@@ -194,6 +206,7 @@ public class PlayerMovement : MonoBehaviour
                 canMove = true;
                 canSprint = true;
                 canCrouch = true;
+                canAttack = true;
                 break;
 
             case STATE.WALK:
@@ -216,6 +229,7 @@ public class PlayerMovement : MonoBehaviour
                 canMove = true;
                 canSprint = true;
                 canCrouch = true;
+                canAttack = true;
                 break;
 
             case STATE.CROUCH:
@@ -227,6 +241,7 @@ public class PlayerMovement : MonoBehaviour
                 canMove = true;
                 canSprint = false;
                 canCrouch = true;
+                canAttack = true;
                 break;
 
             case STATE.SPRINT:
@@ -241,6 +256,7 @@ public class PlayerMovement : MonoBehaviour
                 canMove = true;
                 canSprint = true;
                 canCrouch = false;
+                canAttack = false;
                 break;
 
             case STATE.ATTACK:
@@ -248,12 +264,24 @@ public class PlayerMovement : MonoBehaviour
                 {
                     StartCoroutine(Attack());
                 }
-
+                canMove = false;
+                canSprint = false;
+                canCrouch = false;
+                canAttack = true;
                 break;
 
+            case STATE.DEFEND:
+                if (!isDefending)
+                {
+                    
+                }
+
+                break;
             case STATE.DEAD:
                 canMove = false;
-
+                canSprint = false;
+                canCrouch = false;
+                canAttack = false;
                 break;
         }
     }
@@ -356,11 +384,6 @@ public class PlayerMovement : MonoBehaviour
                 new Vector3(transform.position.x, 1.3f, transform.position.z);
         }
 
-
-
-
-
-
         float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
         float speedOffset = 0.1f;
         float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
@@ -402,15 +425,26 @@ public class PlayerMovement : MonoBehaviour
 
     IEnumerator Attack()
     {
-        isAttacking = true;
-        
+        if (_input.attack && !isAttacking && canAttack)
+        {
+            isAttacking = true;
+            canMove = false;
+            canSprint = false;
+            canCrouch = false;
+            canAttack = false;
 
-        _animator.SetTrigger("Attack");
+            _animator.SetTrigger("Attack");
+            _enemyAI.health = _enemyAI.health - _playerStatsRef.attack;
 
-        
 
-        yield return new WaitForSeconds(attackDelay);
-        isAttacking = false;
+            yield return new WaitForSeconds(attackCoolDown);
+            isAttacking = false;
+            canMove = true;
+            canSprint = true;
+            canCrouch = true;
+            canAttack = true;
+        }
+       
         
     }
 

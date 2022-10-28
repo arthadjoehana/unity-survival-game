@@ -18,12 +18,23 @@ public class PlayerStatsReference : ScriptableObject
     public float maxHealth;
     public float currentHealth;
 
+    public float attack;
+    public float defense;
+    public float agility;
+    public float dexterity;
+    public float intelligence;
+
+    public int level;
+    public float exp;
+    public int talentPoints;
+
+    public bool isDead;
+    public bool isBleeding;
+    public bool isStunned;
+
     public float currentArmorPoints;
 
     public float baseStealth;
     public float crouchStealth;
 
-    public float attack;
-
-    public bool isDead = false;
 }

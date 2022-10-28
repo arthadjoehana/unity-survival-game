@@ -9,7 +9,7 @@ public class EnemyAI : MonoBehaviour
 
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private GameObject player;
-    [SerializeField] private Animator animator;
+    [SerializeField] private Animator _animator;
     [SerializeField] private PlayerMovement _playerMovement;
 
     [SerializeField] private PlayerStatsReference _playerStatsRef;
@@ -41,7 +41,7 @@ public class EnemyAI : MonoBehaviour
 
     public enum STATE
     {
-        BEHAVIOUR, CHASE, ATTACK, RETURNTOPOSITION, WANDER, PATROL, SCRIPTED
+        BEHAVIOUR, CHASE, ATTACK, RETURNTOPOSITION, WANDER, PATROL, SCRIPTED, DEAD
     }
     public STATE currState = STATE.BEHAVIOUR;
 
@@ -50,6 +50,8 @@ public class EnemyAI : MonoBehaviour
         IDLE, WANDER, PATROL, SCRIPTED
     }
     public BEHAVIOUR Behaviour;
+
+    public float health;
 
     private Vector3 originalPosition;
     private bool hasDestination;
@@ -62,6 +64,7 @@ public class EnemyAI : MonoBehaviour
     private bool playerDetected;
     private bool playerStealthCheck; 
     private bool playerIsAlive;
+    private bool isDead;
     private bool obstacle;
     private bool noDirection;
     private Vector3 direction;
@@ -70,17 +73,15 @@ public class EnemyAI : MonoBehaviour
 
     private void Awake()
     {
-        _playerMovement = player.GetComponent<PlayerMovement>();
-
         damage = _enemyStatsRef.damage;
-
-
     }
 
     private void Start()
     {
         originalPosition = transform.position;
         playerIsAlive = true;
+        health = _enemyStatsRef.maxHealth;
+        isDead = false;
     }
 
     void Update()
@@ -100,6 +101,7 @@ public class EnemyAI : MonoBehaviour
             case STATE.BEHAVIOUR:
                 ChangeStateBasedOnConf();
                 break;
+
             case STATE.CHASE:
                 agent.speed = chaseSpeed;
                 agent.isStopped = false;
@@ -121,9 +123,11 @@ public class EnemyAI : MonoBehaviour
                     ChangeState(STATE.ATTACK);
                 }
                 break;
+
             case STATE.RETURNTOPOSITION:
                 agent.SetDestination(originalPosition);
                 break;
+
             case STATE.WANDER:
                 agent.speed = walkSpeed;
                 agent.isStopped = false;
@@ -136,10 +140,13 @@ public class EnemyAI : MonoBehaviour
                     ChangeState(STATE.CHASE);
                 }
                 break;
+
             case STATE.PATROL:
                 break;
+
             case STATE.SCRIPTED:
                 break;
+
             case STATE.ATTACK:
                 if(playerIsAlive)
                 {
@@ -155,17 +162,14 @@ public class EnemyAI : MonoBehaviour
                         }
                         else
                         {
-                            if (!isAttacking)
-                            {
-                                Quaternion rotation = Quaternion.LookRotation(player.transform.position - transform.position);
-                                transform.rotation = Quaternion.Slerp(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
-                            }
+                            Quaternion rotation = Quaternion.LookRotation(player.transform.position - transform.position);
+                            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
                         }
                     }
                     else
                     {
                         agent.isStopped = false;
-                        if (!isAttacking && playerIsAlive)
+                        if (playerIsAlive)
                         {
                             ChangeState(STATE.CHASE);
                         }
@@ -176,10 +180,14 @@ public class EnemyAI : MonoBehaviour
                     ChangeStateBasedOnConf();
                 }
                 break;
+            case STATE.DEAD:
+
+                break;
         }
         DetectPlayer();
+        Die();
 
-        animator.SetFloat("Speed", agent.velocity.magnitude);
+        _animator.SetFloat("Speed", agent.velocity.magnitude);
     }
 
     private void ChangeStateBasedOnConf()
@@ -218,6 +226,11 @@ public class EnemyAI : MonoBehaviour
             }
 
             if (playerInSight)
+            {
+                Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
+                playerDetected = true;
+            }
+            if (playerInRange)
             {
                 Debug.DrawRay(transform.position, direction, Color.green, 0.5f);
                 playerDetected = true;
@@ -274,17 +287,28 @@ public class EnemyAI : MonoBehaviour
         isAttacking = true;
         agent.isStopped = true;
 
-        animator.SetTrigger("Attack");
+        _animator.SetTrigger("Attack");
         _playerHealth.TakeDamage();
         /*if (playerIsHit)
         {
             _playerHealth.TakeDamage();
         }
         */
-
+        yield return new WaitForSeconds(2);
+        agent.isStopped = false;
         yield return new WaitForSeconds(attackDelay);
         isAttacking = false;
-        agent.isStopped = false;
+    }
+
+    void Die()
+    {
+        if (health <= 0)
+            if (!isDead)
+            {
+                ChangeState(STATE.DEAD);
+                _animator.SetTrigger("Death");
+                isDead = true;
+            }
     }
 
     private void OnDrawGizmos()
