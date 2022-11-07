@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHealth: 100
   currentHealth: 0
-  healthBarFill: {fileID: 0}
   damage: 10
+  exp: 50
   stealthDetection: 50
   isDead: 0

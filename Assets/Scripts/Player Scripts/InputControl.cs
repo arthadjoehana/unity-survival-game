@@ -5,13 +5,22 @@ using UnityEngine.InputSystem;
 
 public class InputControl : MonoBehaviour
 {
+    [SerializeField] PlayerInput _playerInput;
+    [SerializeField] Animator _animator;
+    [SerializeField] AnimationScript _animation;
+
     [Header("Character Input Values")]
     public Vector2 move;
     public Vector2 look;
+    public bool attack;
+    public bool canAttack;
     public bool jump;
     public bool sprint;
     public bool crouch;
+    public bool canCrouch;
     public bool interact;
+    public bool combat;
+    public bool weapon;
 
     [Header("Movement Settings")]
     public bool analogMovement;
@@ -20,36 +29,59 @@ public class InputControl : MonoBehaviour
     public bool cursorLocked = true;
     public bool cursorInputForLook = true;
 
-
-    public void OnMove(InputValue value)
+    private void Start()
     {
-        Move(value.Get<Vector2>());
+        canAttack = false;
+        canCrouch = true;
     }
 
-    public void OnLook(InputValue value)
+    private void Update()
+    {
+        canCrouch = !sprint;
+        canAttack = !sprint;
+    }
+
+    public void OnMove(InputValue inputValue)
+    {
+        Move(inputValue.Get<Vector2>());
+    }
+
+    public void OnLook(InputValue inputValue)
     {
         if (cursorInputForLook)
         {
-            Look(value.Get<Vector2>());
+            Look(inputValue.Get<Vector2>());
         }
     }
-
-    public void OnJump(InputValue value)
+    public void OnAttack(InputValue inputValue)
     {
-        Jump(value.isPressed);
+        if (canAttack) Attack(inputValue.isPressed);
     }
 
-    public void OnSprint(InputValue value)
+    public void OnJump(InputValue inputValue)
     {
-        Sprint(value.isPressed);
+        Jump(inputValue.isPressed);
     }
 
-    public void OnCrouch(InputValue value)
+    public void OnSprint(InputValue inputValue)
     {
-        Crouch(value.isPressed);
+        Sprint(inputValue.isPressed);
     }
 
+    public void OnCrouch(InputValue inputValue)
+    {
+        if (canCrouch) Crouch(inputValue.isPressed);
+    }
 
+    public void OnInteract(InputValue inputValue)
+    {
+        Interact(inputValue.isPressed);
+    }
+
+    public void OnCombat(InputValue inputValue)
+    {
+        Combat(inputValue.isPressed);
+    }
 
     public void Move(Vector2 newMoveDirection)
     {
@@ -60,25 +92,49 @@ public class InputControl : MonoBehaviour
     {
         look = newLookDirection;
     }
+    public void Attack(bool newAttackState)
+    {
+        attack = newAttackState;
+        Debug.Log("attack is pressed");
+    }
 
     public void Jump(bool newJumpState)
     {
         jump = newJumpState;
+        Debug.Log("jump is pressed");
     }
 
     public void Sprint(bool newSprintState)
     {
         sprint = newSprintState;
+        Debug.Log("sprint is pressed");
     }
 
     public void Crouch(bool newCrouchState)
     {
-        crouch = newCrouchState;
+        crouch = !crouch;
+        Debug.Log("crouch is pressed");
     }
 
     public void Interact(bool newInteractState)
     {
         interact = newInteractState;
+        Debug.Log("interact is pressed");
+    }
+
+    public void Combat(bool newCombatState)
+    {
+        if (combat)
+        {
+            combat = false;
+            _animator.SetTrigger(_animation.sheathe);
+        }
+        else
+        {
+            combat = true;
+            _animator.SetTrigger(_animation.unsheathe);
+        }
+        Debug.Log("combat is pressed");
     }
 
     private void OnApplicationFocus(bool hasFocus)

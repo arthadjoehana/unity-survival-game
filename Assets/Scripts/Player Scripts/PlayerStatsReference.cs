@@ -7,13 +7,13 @@ using UnityEngine.Events;
 [CreateAssetMenu(fileName = "PlayerStatsReference", menuName = "PlayerStatsReference")]
 public class PlayerStatsReference : ScriptableObject
 {
-    PlayerStats _playerStats;
     PlayerMovement _playerMovement;
     PlayerHealth _playerHealth;
+    PlayerLevel _playerLevel;
 
-    public PlayerStats PlayerStats { get => _playerStats; set => _playerStats = value; }
     public PlayerMovement PlayerMovement { get => _playerMovement; set => _playerMovement = value; }
     public PlayerHealth PlayerHealth { get => _playerHealth; set => _playerHealth = value; }
+    public PlayerLevel PlayerLevel { get => _playerLevel; set => _playerLevel = value; }
 
     public float maxHealth;
     public float currentHealth;

@@ -13,9 +13,18 @@ MonoBehaviour:
   m_Name: PlayerStatsReference
   m_EditorClassIdentifier: 
   maxHealth: 100
-  currentHealth: 100
+  currentHealth: 30
+  attack: 50
+  defense: 0
+  agility: 0
+  dexterity: 0
+  intelligence: 0
+  level: 1
+  exp: 0
+  talentPoints: 0
+  isDead: 0
+  isBleeding: 0
+  isStunned: 0
   currentArmorPoints: 0
   baseStealth: 51
   crouchStealth: 20
-  attack: 0
-  isDead: 0

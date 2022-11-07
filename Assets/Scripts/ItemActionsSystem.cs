@@ -7,9 +7,6 @@ public class ItemActionsSystem : MonoBehaviour
     [SerializeField]
     private Equipment equipment;
 
-    [SerializeField]
-    private PlayerStats playerStats;
-
     [Header("ITEMS ACTIONS SYSTEM VARIABLES")]
 
     public GameObject actionPanel;

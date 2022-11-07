@@ -9,65 +9,42 @@ using Cinemachine;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Player movement stats")]
-    public float moveSpeed = 2.0f;
+    public float walkSpeed = 2.0f;
     public float sprintSpeed = 6.0f;
     public float sneakSpeed = 1.0f;
+    public float targetSpeed;
 
-    [Tooltip("How fast the character turns to face movement direction")]
+    public float attackCoolDown = 3.0f;
+    public float attackRadius;
+    public float attackAngle = 30.0f;
+    private float angle;
+
     [Range(0.0f, 0.3f)]
     public float rotationSpeed = 0.12f;
     private float rotationVelocity;
 
-    [Tooltip("Acceleration and deceleration")]
     public float speedChangeRate = 10.0f;
 
     public AudioClip LandingAudioClip;
     public AudioClip[] FootstepAudioClips;
-    [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
+    [Range(0, 1)] 
+    public float FootstepAudioVolume = 0.5f;
 
-    public float attackDelay = 1.0f;
 
     [Space(10)]
-    [Tooltip("The height the player can jump")]
     public float jumpHeight = 1.2f;
-
-    [Tooltip("The character uses its own gravity value. The engine default is -9.81f")]
     public float gravity = -15.0f;
 
     [Space(10)]
-    [Tooltip("Time required to pass before being able to jump again. Set to 0f to instantly jump again")]
     public float jumpTimeout = 0.50f;
-
-    [Tooltip("Time required to pass before entering the fall state. Useful for walking down stairs")]
     public float fallTimeout = 0.15f;
 
     public bool grounded = true;
     public float groundedOffset = -0.14f;
     public float groundedRadius = 0.28f;
 
-    [Tooltip("What layers the character uses as ground")]
+
     public LayerMask Ground;
-
-    [Header("Cinemachine")]
-    [Tooltip("The follow target set in the Cinemachine Virtual Camera that the camera will follow")]
-    public GameObject CinemachineCameraTarget;
-
-    [Tooltip("How far in degrees can you move the camera up")]
-    public float TopClamp = 70.0f;
-
-    [Tooltip("How far in degrees can you move the camera down")]
-    public float BottomClamp = -30.0f;
-
-    [Tooltip("Additional degress to override the camera. Useful for fine tuning camera position when locked")]
-    public float CameraAngleOverride = 0.0f;
-
-    [Tooltip("For locking the camera position on all axis")]
-    public bool LockCameraPosition = false;
-
-    // cinemachine
-    private float _cinemachineTargetYaw;
-    private float _cinemachineTargetPitch;
 
     // player
     public float speed;
@@ -79,34 +56,25 @@ public class PlayerMovement : MonoBehaviour
     private float jumpTimeoutDelta;
     private float fallTimeoutDelta;
 
-    // animation IDs
-    private int _animIDSpeed;
-    private int _animIDGrounded;
-    private int _animIDCrouch;
-    private int _animIDSprint;
-    private int _animIDJump;
-    private int _animIDFreeFall;
-    private int _animIDMotionSpeed;
-    private int _animIDDeath;
-
     // references
     [SerializeField] PlayerStatsReference _playerStatsRef;
-    private PlayerInput _playerInput;
-    private Animator _animator;
-    private CharacterController _controller;
-    private InputControl _input;
-    private GameObject _mainCamera;
-
+    [SerializeField] Animator _animator;
+    [SerializeField] CharacterController _controller;
+    [SerializeField] InputControl _input;
+    [SerializeField] CameraMovement _cameraMovement;
+    [SerializeField] GameObject _mainCamera;
+    [SerializeField] EnemyAI _enemyAI;
     [SerializeField] GameObject _playerCameraRoot;
-
-    private const float _threshold = 0.01f;
-
-    private bool _hasAnimator;
-
+    [SerializeField] AnimationScript _animation;
+    [SerializeField] GameObject _sheathedWeapon;
+    [SerializeField] GameObject _unsheathedWeapon;
+   
+    
     //States
     public bool isMoving;
     public bool isCrouched;
     public bool isRunning;
+    public bool isFighting;
     public bool isAttacking;
     public bool isDefending;
     public bool isDead;
@@ -114,45 +82,40 @@ public class PlayerMovement : MonoBehaviour
     public bool canMove;
     public bool canSprint;
     public bool canCrouch;
+    public bool canFight;
     public bool canAttack;
+
+    public bool attackHasStarted;
+    public bool attack1HasStarted;
+    public bool attack2HasStarted;
+    public bool attack3HasStarted;
 
     public float totalStealth;
     public float baseStealth;
     public float crouchStealth;
     public float noise;
 
-    private bool IsCurrentDeviceMouse
-    {
-        get
-        {
-            return _playerInput.currentControlScheme == "KeyboardMouse";
-        }
-    }
-
     public enum STATE
     {
-        STAND, WALK, CROUCH, SPRINT, ATTACK, DEFEND, DAMAGED, DEAD
+        DEFAULT, 
+        CROUCH, 
+        SPRINT, 
+        COMBAT, 
+        ATTACK,
+        ATTACK1,
+        ATTACK2,
+        ATTACK3,
+        DEFEND, 
+        DAMAGED, 
+        DEAD
     }
-    public STATE currState = STATE.STAND;
+    public STATE currentState = STATE.DEFAULT;
+
+
 
     private void Awake()
     {
-        if (_mainCamera == null)
-        {
-            _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-        }
-
         _playerStatsRef.PlayerMovement = this;
-
-        _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-        
-
-        _hasAnimator = TryGetComponent(out _animator);
-        _controller = GetComponent<CharacterController>();
-        _input = GetComponent<InputControl>();
-        _playerInput = GetComponent<PlayerInput>();
-
-        AssignAnimationIDs();
     }
 
     private void Start()
@@ -163,125 +126,71 @@ public class PlayerMovement : MonoBehaviour
         jumpTimeoutDelta = jumpTimeout;
         fallTimeoutDelta = fallTimeout;
 
-        canMove = true;
-        canSprint = true;
-        canCrouch = true;
-
-        isDead = _playerStatsRef.currentHealth > 0 ? false : true;
+        isDead = false;
     }
 
     private void Update()
     {
-        totalStealth = baseStealth - noise;
-
-        GroundedCheck();
-        Move();
-        JumpAndGravity();
-        Die();
-
-        switch (currState)
+        switch (currentState)
         {
-            case STATE.STAND:
-                noise = 0f;
-                if(isMoving)
-                {
-                    ChangeState(STATE.WALK);
-                }
-                if (_input.crouch)
-                {
-                    ChangeState(STATE.CROUCH);
-                }
-                
+            case STATE.DEFAULT:
                 canMove = true;
                 canSprint = true;
                 canCrouch = true;
+                canFight = true;
+                canAttack = false;
                 break;
-
-            case STATE.WALK:
-                if (isMoving)
-                {
-                    noise = 10f;
-                    if (_input.sprint)
-                    {
-                        ChangeState(STATE.SPRINT);
-                    }
-                }
-                else
-                {
-                    ChangeState(STATE.STAND);
-                }
-                if (_input.crouch)
-                {
-                    ChangeState(STATE.CROUCH);
-                }
-                canMove = true;
-                canSprint = true;
-                canCrouch = true;
-                break;
-
-            case STATE.CROUCH:
-                noise = 0f;
-                if (!_input.crouch)
-                {
-                    ChangeState(STATE.STAND);
-                }
-                canMove = true;
-                canSprint = false;
-                canCrouch = true;
-                break;
-
             case STATE.SPRINT:
-                if (isMoving)
-                {
-                    noise = 20f;
-                }
-                if (!_input.sprint)
-                {
-                    ChangeState(STATE.STAND);
-                }
                 canMove = true;
                 canSprint = true;
                 canCrouch = false;
+                canFight = true;
+                canAttack = false;
                 break;
-
-            case STATE.ATTACK:
-                if (!isAttacking)
-                {
-                    StartCoroutine(Attack());
-                }
+            case STATE.CROUCH:
+                canMove = true;
+                canSprint = true;
+                canCrouch = true;
+                canFight = false;
+                canAttack = false;
+                break;
+            case STATE.COMBAT:
+                canMove = true;
+                canSprint = false;
+                canCrouch = false;
+                canFight = true;
+                canAttack = true;
+                break;
+            case STATE.ATTACK1:
 
                 break;
+            case STATE.ATTACK2:
 
-            case STATE.DEFEND:
-                if (!isDefending)
-                {
-                    
-                }
+                break;
+            case STATE.ATTACK3:
 
                 break;
             case STATE.DEAD:
                 canMove = false;
+                canSprint = false;
+                canCrouch = false;
+                canFight = false;
+                canAttack = false;
+                break;
+            default:
 
                 break;
         }
+
+        totalStealth = baseStealth - noise;
+
+        GroundedCheck();
+        Action();
+        JumpAndGravity();
+        Death();
+
     }
 
-    private void LateUpdate()
-    {
-        CameraRotation();
-    }
-
-    private void AssignAnimationIDs()
-    {
-        _animIDSpeed = Animator.StringToHash("Speed");
-        _animIDGrounded = Animator.StringToHash("Grounded");
-        _animIDCrouch = Animator.StringToHash("Crouch");
-        _animIDSprint = Animator.StringToHash("Sprint");
-        _animIDJump = Animator.StringToHash("Jump");
-        _animIDFreeFall = Animator.StringToHash("FreeFall");
-        _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
-        _animIDDeath = Animator.StringToHash("Death");
-    }
 
     private void GroundedCheck()
     {
@@ -290,84 +199,118 @@ public class PlayerMovement : MonoBehaviour
         grounded = Physics.CheckSphere(spherePosition, groundedRadius, Ground,
             QueryTriggerInteraction.Ignore);
 
-        if (_hasAnimator) _animator.SetBool(_animIDGrounded, grounded);
+        _animator.SetBool(_animation.grounded, grounded);
     }
 
-    private void CameraRotation()
+    private void Action()
     {
-        if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
-        {
-            float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
+        targetSpeed = walkSpeed;
+        isMoving = _input.move != Vector2.zero;
+        isFighting = _input.combat;
+        isCrouched = _input.crouch;
+        isRunning = _input.sprint;
+        isAttacking = _input.attack;
 
-            _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
-            _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
+        //idle
+        if (!isMoving)
+        {
+            noise = 0;
+            targetSpeed = 0;
         }
 
-        _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
-        _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
-
-        CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch + CameraAngleOverride,
-            _cinemachineTargetYaw, 0.0f);
-    }
-
-    private void Move()
-    {
-        float targetSpeed = moveSpeed;
-        Vector3 camView = _playerCameraRoot.transform.position;
-
-        if (_input.move == Vector2.zero)
+        //default
+        if (!isRunning && !isCrouched && !isFighting)
         {
-            targetSpeed = 0.0f;
-            isMoving = false;
+            ChangeState(STATE.DEFAULT);
         }
 
-        if (_input.sprint && canSprint)
+        //move
+        if (canMove && isMoving)
+        {   
+            noise = 10;
+            Vector3 direction = transform.right * _input.move.x + transform.forward * _input.move.y;
+            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref rotationVelocity, rotationSpeed);
+            Quaternion targetRotation = Quaternion.Euler(0, rotation, 0);
+            transform.rotation = targetRotation;
+
+            _controller.Move(direction.normalized * (speed * Time.deltaTime) + new Vector3(0.0f, verticalVelocity, 0.0f) * Time.deltaTime);
+        }
+
+        //sprint
+        if (canSprint && isRunning && !isFighting)
         {
-            if (_input.move != Vector2.zero)
+            if (isMoving)
             {
+                noise = 20;
+                ChangeState(STATE.SPRINT);
                 targetSpeed = sprintSpeed;
-                isRunning = true;
-                canCrouch = false;
-                _animator.SetBool(_animIDSprint, true);
+                _input.crouch = false;
+            }
+            else
+            {
+                ChangeState(STATE.DEFAULT);
+            }
+        }
+
+        //crouch
+        if (canCrouch && isCrouched)
+        {
+            noise = 0;
+            ChangeState(STATE.CROUCH);
+            _playerCameraRoot.transform.position = new Vector3(transform.position.x, 0.8f, transform.position.z + 0.2f);
+            
+            targetSpeed = isMoving ? sneakSpeed : 0;
+        }
+        else
+        {
+            _playerCameraRoot.transform.position = new Vector3(transform.position.x, 1.3f, transform.position.z);
+        }
+        
+        //combat
+        if (canFight && isFighting)
+        {
+            _unsheathedWeapon.SetActive(true);
+            _sheathedWeapon.SetActive(false);
+            noise = 20;
+            ChangeState(STATE.COMBAT);
+            _input.crouch = false;
+
+            if(isRunning)
+            {
                 if (isMoving)
                 {
                     targetSpeed = sprintSpeed;
+                    canAttack = false;
+                    isAttacking = false;
+                    _input.attack = false;
                 }
+                else
+                {
+                    targetSpeed = 0;
+                    canAttack = true;
+                }
+
             }
         }
         else
         {
-            isRunning = false;
-            canCrouch = true;
-            _animator.SetBool(_animIDSprint, false);
+            _unsheathedWeapon.SetActive(false);
+            _sheathedWeapon.SetActive(true);
         }
 
-        if (_input.crouch && canCrouch)
+        //attack
+        if (canAttack && isAttacking && !attack1HasStarted)
         {
-            isCrouched = true;
-            canSprint = false;
-            _animator.SetBool(_animIDCrouch, true);
-            _playerCameraRoot.transform.position = 
-                new Vector3(transform.position.x, 0.6f, transform.position.z);
-
-            if (isMoving)
-            {
-                targetSpeed = sneakSpeed;
-            }
-        }
-        else
-        {
-            isCrouched = false;
-            canSprint = true;
-            _animator.SetBool(_animIDCrouch, false);
-            _playerCameraRoot.transform.position =
-                new Vector3(transform.position.x, 1.3f, transform.position.z);
+            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref rotationVelocity, rotationSpeed);
+            Quaternion targetRotation = Quaternion.Euler(0, rotation, 0);
+            transform.rotation = targetRotation;
+            StartCoroutine(Attack1());
         }
 
+        //smooth speed change
         float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
         float speedOffset = 0.1f;
         float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
-
         if (currentHorizontalSpeed < targetSpeed - speedOffset ||
             currentHorizontalSpeed > targetSpeed + speedOffset)
         {
@@ -379,54 +322,83 @@ public class PlayerMovement : MonoBehaviour
         {
             speed = targetSpeed;
         }
-
         animationBlend = Mathf.Lerp(animationBlend, targetSpeed, Time.deltaTime * speedChangeRate);
         if (animationBlend < 0.01f) animationBlend = 0f;
 
-        if (_input.move != Vector2.zero && canMove)
+        //animations
+        _animator.SetFloat(_animation.speed, animationBlend);
+        _animator.SetFloat(_animation.xAxis, _input.move.x);
+        _animator.SetFloat(_animation.yAxis, _input.move.y);
+        _animator.SetFloat(_animation.motionSpeed, inputMagnitude);
+        if (canSprint && isRunning && isMoving) _animator.SetBool(_animation.sprint, true);
+        else _animator.SetBool(_animation.sprint, false);
+        if (canCrouch && isCrouched) _animator.SetBool(_animation.crouch, true);
+        else _animator.SetBool(_animation.crouch, false);
+        if (canFight && isFighting)
         {
-            isMoving = true;
-            Vector3 direction = transform.right * _input.move.x + transform.forward * _input.move.y;
-            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref rotationVelocity, rotationSpeed);
-            Quaternion targetRotation = Quaternion.Euler(0, rotation, 0);
-            transform.rotation = targetRotation;
-
-            _controller.Move(direction.normalized * (speed * Time.deltaTime) + new Vector3(0.0f, verticalVelocity, 0.0f) * Time.deltaTime);
+            if (isRunning && isMoving)
+            {
+                _animator.SetBool(_animation.sprint, true);
+                _animator.SetBool(_animation.combat, false);
+            }
+            else
+            {
+                _animator.SetBool(_animation.combat, true);
+                _animator.SetBool(_animation.sprint, false);
+            }
         }
-
-        if (_hasAnimator)
+        else
         {
-            _animator.SetFloat(_animIDSpeed, animationBlend);
-            _animator.SetFloat("X axis", _input.move.x);
-            _animator.SetFloat("Y axis", _input.move.y);
-            _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
+            _animator.SetBool(_animation.combat, false);
         }
     }
 
-    IEnumerator Attack()
+    IEnumerator Attack1()
     {
-        isAttacking = true;
-        
+        attack1HasStarted = true;
+        canAttack = false;
+        ChangeState(STATE.ATTACK1);
 
-        _animator.SetTrigger("Attack");
+        _animator.SetTrigger(_animation.attack1);
+        Debug.Log("attack 1");
 
-        
+        yield return new WaitForSeconds(attackCoolDown);
 
-        yield return new WaitForSeconds(attackDelay);
-        isAttacking = false;
-        
+        attack1HasStarted = false;
+        canAttack = true;
+        ChangeState(STATE.COMBAT);
     }
+
+   /* IEnumerator Attack2()
+    {
+        attack2HasStarted = true;
+        _animator.SetTrigger(_animation.attack2);
+        Debug.Log("attack 2");
+
+        yield return new WaitForSeconds(attackCoolDown);
+        if (isAttacking)
+        {
+            if (!attack3HasStarted)
+            {
+                StartCoroutine(Attack3());
+                ChangeState(STATE.ATTACK3);
+            }
+        }
+        else
+        {
+            attack1HasStarted = false;
+            attack2HasStarted = false;
+            ChangeState(STATE.COMBAT);
+        }
+    }*/
 
     private void JumpAndGravity()
     {
         if (grounded)
         {
             fallTimeoutDelta = fallTimeout;
-            if (_hasAnimator)
-            {
-                _animator.SetBool(_animIDJump, false);
-                _animator.SetBool(_animIDFreeFall, false);
-            }
+            _animator.SetBool(_animation.jump, false);
+            _animator.SetBool(_animation.freeFall, false);
             // stop our velocity dropping infinitely when grounded
             if (verticalVelocity < 0.0f)
             {
@@ -436,10 +408,7 @@ public class PlayerMovement : MonoBehaviour
             {
                 // the square root of H * -2 * G = how much velocity needed to reach desired height
                 verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
-                if (_hasAnimator)
-                {
-                    _animator.SetBool(_animIDJump, true);
-                }
+                _animator.SetBool(_animation.jump, true);
             }
             if (jumpTimeoutDelta >= 0.0f)
             {
@@ -455,35 +424,31 @@ public class PlayerMovement : MonoBehaviour
             }
             else
             {
-                if (_hasAnimator)
-                {
-                    _animator.SetBool(_animIDFreeFall, true);
-                }
+                _animator.SetBool(_animation.freeFall, true);
             }
             _input.jump = false;
         }
+
         if (verticalVelocity < terminalVelocity)
         {
             verticalVelocity += gravity * Time.deltaTime;
         }
     }
 
-    public void Die()
+    public void Death()
     {
         if (_playerStatsRef.currentHealth <= 0)
             if (!isDead)
             {
                 ChangeState(STATE.DEAD);
-                _animator.SetTrigger("Death");
+                _animator.SetTrigger(_animation.death);
                 isDead = true;
             }
     }
 
-    private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
+    public void ChangeState(STATE newState)
     {
-        if (lfAngle < -360f) lfAngle += 360f;
-        if (lfAngle > 360f) lfAngle -= 360f;
-        return Mathf.Clamp(lfAngle, lfMin, lfMax);
+        currentState = newState;
     }
 
     private void OnDrawGizmosSelected()
@@ -518,10 +483,5 @@ public class PlayerMovement : MonoBehaviour
         {
             AudioSource.PlayClipAtPoint(LandingAudioClip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
         }
-    }
-
-    public void ChangeState(STATE newState)
-    {
-        currState = newState;
     }
 }
