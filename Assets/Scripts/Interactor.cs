@@ -5,12 +5,12 @@ using UnityEngine;
 
 public class Interactor : MonoBehaviour
 {
-    //[SerializeField] GameObject _player;
     [SerializeField] Camera _camera;
     [SerializeField] GameObject _interactor;
+    [SerializeField] InputControl _input;
 
     List<IInteraction> _interactions;
-    
+    private bool assassinate;
 
     IInteraction First => _interactions
         .Select(i => (i, distance: Vector3.Distance(i.position, transform.position)))
@@ -31,10 +31,29 @@ public class Interactor : MonoBehaviour
         assassinationTarget = Physics.Raycast(_interactor.transform.position, _camera.transform.forward * 20f, out var hit, 20f, AssassinationTarget);
         if (assassinationTarget)
         {
-            Debug.Log("assassination target");
-            
+            Debug.DrawRay(_interactor.transform.position, _camera.transform.forward * 20f, Color.cyan);
+            //Debug.Log(hit.collider.name);
+            var target = hit.collider.GetComponentInParent<EnemyHealth>();
+            var detection = hit.collider.GetComponentInParent<Detection>();
+            if (_input.assassinate && !assassinate && target != null && detection != null && !detection.isAlert)
+            {
+                Debug.Log("target assassinated");
+                StartCoroutine(Assassinate(target));   
+            }
         }
-        Debug.DrawRay(_interactor.transform.position, _camera.transform.forward * 20f, Color.cyan);
+        else
+        {
+            Debug.DrawRay(_interactor.transform.position, _camera.transform.forward * 20f, Color.magenta);
+        }
+    }
+
+    IEnumerator Assassinate(EnemyHealth enemyHealth)
+    {
+        assassinate = true;
+        enemyHealth.Assassinated();
+        Debug.Log("isdead0");
+        yield return new WaitForSeconds(1f);
+        assassinate = false;
     }
 
     private void OnTriggerEnter(Collider other)

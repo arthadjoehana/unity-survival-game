@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -77,17 +79,17 @@ public class InputControl : MonoBehaviour
 
     public void OnInteract(InputValue inputValue)
     {
-        Interact(inputValue.isPressed);
+        StartCoroutine(Interact());
     }
 
     public void OnPickpocket(InputValue inputValue)
     {
-        Pickpocket(inputValue.isPressed);
+        StartCoroutine(Pickpocket());
     }
 
     public void OnAssassinate(InputValue inputValue)
     {
-        Assassinate(inputValue.isPressed);
+        StartCoroutine(Assassinate());
     }
 
     public void OnCombat(InputValue inputValue)
@@ -128,22 +130,46 @@ public class InputControl : MonoBehaviour
         Debug.Log("crouch is pressed");
     }
 
-    public void Interact(bool newInteractState)
+    /*public void Interact(bool newInteractState)
     {
         interact = newInteractState;
         Debug.Log("interact is pressed");
-    }
+    }*/
 
-    public void Pickpocket(bool newPickpocketState)
+    /*public void Pickpocket(bool newPickpocketState)
     {
         pickpocket = newPickpocketState;
         Debug.Log("pickpocket is pressed");
-    }
+    }*/
 
-    public void Assassinate(bool newAssassinateState)
+    /*public void Assassinate(bool newAssassinateState)
     {
         assassinate = newAssassinateState;
         Debug.Log("assassinate is pressed");
+    }*/
+
+    IEnumerator Interact()
+    {
+        interact = true;
+        Debug.Log("interact is pressed");
+        yield return new WaitForSeconds(0.5f);
+        interact = false;
+    }
+
+    IEnumerator Pickpocket()
+    {
+        pickpocket = true;
+        Debug.Log("pickpocket is pressed");
+        yield return new WaitForSeconds(0.5f);
+        pickpocket = false;
+    }
+
+    IEnumerator Assassinate()
+    {
+        assassinate = true;
+        Debug.Log("assassinate is pressed");
+        yield return new WaitForSeconds(0.5f);
+        assassinate = false;
     }
 
     public void Combat(bool newCombatState)

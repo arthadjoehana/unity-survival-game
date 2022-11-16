@@ -176,6 +176,11 @@ public class EnemyAI : MonoBehaviour
             {
                 ChangeState(STATE.SEARCH);
             }
+
+            if (_enemyHealth.currentHealth <= 0)
+            {
+                ChangeState(STATE.DEAD);
+            }
         }
 
         //animations
@@ -321,12 +326,14 @@ public class EnemyAI : MonoBehaviour
 
     public void Die()
     {
+        _agent.isStopped = true;
         if (!isDead)
         {
             _animator.SetTrigger(_animation.death);
             isDead = true;
             _collider.enabled = false;
             _playerLevel.ExpUp(_enemyStatsRef.exp);
+            Debug.Log("isdead2");
         }
     }
 }

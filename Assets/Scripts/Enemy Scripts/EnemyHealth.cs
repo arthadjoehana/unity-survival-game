@@ -36,6 +36,17 @@ public class EnemyHealth : MonoBehaviour
         }
     }
 
+    public void Assassinated()
+    {
+        currentHealth = 0;
+        UpdateHealth();
+        Debug.Log("isdead1");
+        if (currentHealth <= 0)
+        {
+            _enemyAI.ChangeState(EnemyAI.STATE.DEAD);
+        }
+    }
+
     public void UpdateHealth()
     {
         enemyHealth = currentHealth;
