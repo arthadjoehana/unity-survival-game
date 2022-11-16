@@ -10,8 +10,7 @@ public class AssassinateInteractor : MonoBehaviour
 
     IAssassinationTarget First => _assassinationTargetList
         .Select(i => (i, distance: Vector3.Distance(i.position, transform.position)))
-        .Aggregate((a, b) => a.distance < b.distance ? a : b)
-    .i;
+        .Aggregate((a, b) => a.distance < b.distance ? a : b).i;
 
     private void Awake()
     {
