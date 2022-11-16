@@ -11,10 +11,10 @@ public class EnemyHitCollider : MonoBehaviour
 
     public void OnTriggerEnter(Collider hitbox)
     {
-        var health = hitbox.GetComponentInParent<PlayerHealth>();
-        if (_enemyAI.isAttacking && health != null)
+        var target = hitbox.GetComponentInParent<PlayerHealth>();
+        if (_enemyAI.isAttacking && target != null)
         {
-            StartCoroutine(Hit(health));
+            StartCoroutine(Hit(target));
         }
     }
 
@@ -25,6 +25,13 @@ public class EnemyHitCollider : MonoBehaviour
         playerHealth.TakeDamage(_enemyStatsRef.damage);
         _audioSource.Play();
         yield return new WaitForSeconds(_enemyAI.attackDelay - 0.1f);
+        _collider.enabled = true;
+    }
+
+
+    private void OnDisable()
+    {
+        StopAllCoroutines();
         _collider.enabled = true;
     }
 }

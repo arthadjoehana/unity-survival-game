@@ -9,11 +9,10 @@ public class PlayerLevel : MonoBehaviour
     [SerializeField] LevelText _levelText;
     
     public float expTotal;
+    public float oldExpTotal;
+    public float newExpTotal;
     public float playerExp;
     public int playerLevel;
-    
-    //public float CurrentExp { get => playerExp; }
-    //public int CurrentLevel { get => playerLevel; }
 
     private void Awake()
     {
@@ -29,20 +28,38 @@ public class PlayerLevel : MonoBehaviour
         playerLevel = _playerStatsRef.level;
     }
 
-    public void Update()
+    public void ExpUp(float exp)
     {
+        _playerStatsRef.exp += exp;
+
+        oldExpTotal = expTotal;
+        
+        UpdateExp();
+
         if (playerExp >= expTotal)
         {
-            _playerStatsRef.level += 1;
-            _playerStatsRef.exp -= expTotal ;
-            UpdateLevel();
-            UpdateExp();
+            LevelUp();
         }
+    }
+
+    public void LevelUp()
+    {
+        _playerStatsRef.level += 1;
+
+        _playerStatsRef.exp -= oldExpTotal;
+        newExpTotal = oldExpTotal + 100;
+        expTotal = newExpTotal;
+
+        UpdateLevel();
+        UpdateExp();
+
+        _playerStatsRef.attack += 20;
+        _playerStatsRef.maxHealth += 100;
+        _playerStatsRef.talentPoints += 1;
     }
 
     public void UpdateExp()
     {
-        expTotal = _playerStatsRef.level * 100;
         playerExp = _playerStatsRef.exp;
         _experienceBar.UpdateExpBar(this);
     }

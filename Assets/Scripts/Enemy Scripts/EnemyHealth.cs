@@ -6,13 +6,13 @@ public class EnemyHealth : MonoBehaviour
 {
     [SerializeField] EnemyStatsReference _enemyStatsRef;
     [SerializeField] EnemyHealthBar _enemyHealthBar;
+    [SerializeField] EnemyAI _enemyAI;
 
     public float maxHealth;
     public float currentHealth;
 
     public float enemyHealth;
     public float CurrentHealth { get => enemyHealth; }
-    public float MaxHealth { get => _enemyStatsRef.maxHealth; }
 
     public void Awake()
     {
@@ -30,6 +30,10 @@ public class EnemyHealth : MonoBehaviour
     {
         currentHealth -= damage;
         UpdateHealth();
+        if (currentHealth <= 0)
+        {
+            _enemyAI.ChangeState(EnemyAI.STATE.DEAD);
+        }
     }
 
     public void UpdateHealth()

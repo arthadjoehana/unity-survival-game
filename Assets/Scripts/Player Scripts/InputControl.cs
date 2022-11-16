@@ -19,6 +19,8 @@ public class InputControl : MonoBehaviour
     public bool crouch;
     public bool canCrouch;
     public bool interact;
+    public bool pickpocket;
+    public bool assassinate;
     public bool combat;
     public bool weapon;
 
@@ -78,6 +80,16 @@ public class InputControl : MonoBehaviour
         Interact(inputValue.isPressed);
     }
 
+    public void OnPickpocket(InputValue inputValue)
+    {
+        Pickpocket(inputValue.isPressed);
+    }
+
+    public void OnAssassinate(InputValue inputValue)
+    {
+        Assassinate(inputValue.isPressed);
+    }
+
     public void OnCombat(InputValue inputValue)
     {
         Combat(inputValue.isPressed);
@@ -122,18 +134,21 @@ public class InputControl : MonoBehaviour
         Debug.Log("interact is pressed");
     }
 
+    public void Pickpocket(bool newPickpocketState)
+    {
+        pickpocket = newPickpocketState;
+        Debug.Log("pickpocket is pressed");
+    }
+
+    public void Assassinate(bool newAssassinateState)
+    {
+        assassinate = newAssassinateState;
+        Debug.Log("assassinate is pressed");
+    }
+
     public void Combat(bool newCombatState)
     {
-        if (combat)
-        {
-            combat = false;
-            _animator.SetTrigger(_animation.sheathe);
-        }
-        else
-        {
-            combat = true;
-            _animator.SetTrigger(_animation.unsheathe);
-        }
+        combat = !combat;
         Debug.Log("combat is pressed");
     }
 

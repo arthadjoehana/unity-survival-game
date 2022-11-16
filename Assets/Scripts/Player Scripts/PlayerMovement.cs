@@ -1,63 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.Events;
-using UnityEngine.InputSystem;
-using Cinemachine;
 
 
 public class PlayerMovement : MonoBehaviour
 {
-    public float walkSpeed = 2.0f;
-    public float sprintSpeed = 6.0f;
-    public float sneakSpeed = 1.0f;
-    public float targetSpeed;
-
-    public float attackCoolDown = 3.0f;
-    public float attackRadius;
-    public float attackAngle = 30.0f;
-    private float angle;
-
-    [Range(0.0f, 0.3f)]
-    public float rotationSpeed = 0.12f;
-    private float rotationVelocity;
-
-    public float speedChangeRate = 10.0f;
-
-    public AudioClip LandingAudioClip;
-    public AudioClip[] FootstepAudioClips;
-    [Range(0, 1)] 
-    public float FootstepAudioVolume = 0.5f;
-
-
-    [Space(10)]
-    public float jumpHeight = 1.2f;
-    public float gravity = -15.0f;
-
-    [Space(10)]
-    public float jumpTimeout = 0.50f;
-    public float fallTimeout = 0.15f;
-
-    public bool grounded = true;
-    public float groundedOffset = -0.14f;
-    public float groundedRadius = 0.28f;
-
-
-    public LayerMask Ground;
-
-    // player
-    public float speed;
-    private float animationBlend;
-    private float verticalVelocity;
-    private float terminalVelocity = 53.0f;
-
-    // timeout deltatime
-    private float jumpTimeoutDelta;
-    private float fallTimeoutDelta;
-
     // references
     [SerializeField] PlayerStatsReference _playerStatsRef;
+    [SerializeField] GameObject _playerHead;
     [SerializeField] Animator _animator;
     [SerializeField] CharacterController _controller;
     [SerializeField] InputControl _input;
@@ -68,11 +18,47 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] AnimationScript _animation;
     [SerializeField] GameObject _sheathedWeapon;
     [SerializeField] GameObject _unsheathedWeapon;
-   
-    
+    [SerializeField] public GameObject _noiseSpot;
+
+    public float walkSpeed = 2.0f;
+    public float sprintSpeed = 6.0f;
+    public float sneakSpeed = 1.0f;
+    public float targetSpeed;
+    [Range(0.0f, 0.3f)]
+    public float rotationSpeed = 0.12f;
+    private float rotationVelocity;
+    public float speedChangeRate = 10.0f;
+    public float speed;
+    private float animationBlend;
+    private float verticalVelocity;
+    private float terminalVelocity = 53.0f;
+
+    public float attackCoolDown = 3.0f;
+    public float attackRadius;
+    public float attackAngle = 30.0f;
+
+    public AudioClip LandingAudioClip;
+    public AudioClip[] FootstepAudioClips;
+    [Range(0, 1)] 
+    public float FootstepAudioVolume = 0.5f;
+
+    [Space(10)]
+    public float jumpHeight = 1.2f;
+    public float gravity = -15.0f;
+    [Space(10)]
+    public float jumpTimeout = 0.50f;
+    public float fallTimeout = 0.15f;
+    public bool grounded = true;
+    public float groundedOffset = -0.14f;
+    public float groundedRadius = 0.28f;
+    private float jumpTimeoutDelta;
+    private float fallTimeoutDelta;
+    public LayerMask Ground;
+
     //States
     public bool isMoving;
     public bool isCrouched;
+    public bool isHidden;
     public bool isRunning;
     public bool isFighting;
     public bool isAttacking;
@@ -94,6 +80,8 @@ public class PlayerMovement : MonoBehaviour
     public float baseStealth;
     public float crouchStealth;
     public float noise;
+    public bool noiseGenerated;
+    public Vector3 noiseLocation;
 
     public enum STATE
     {
@@ -111,6 +99,13 @@ public class PlayerMovement : MonoBehaviour
     }
     public STATE currentState = STATE.DEFAULT;
 
+    public enum STATUS
+    {
+        ANONYMOUS, //enemies are not aware of the player
+        SUSPICIOUS, //enemies will be aware of the player if they draw attention
+        COMPROMISED //enemies are aware of the player
+    }
+    public STATUS currentStatus = STATUS.ANONYMOUS;
 
 
     private void Awake()
@@ -143,7 +138,7 @@ public class PlayerMovement : MonoBehaviour
             case STATE.SPRINT:
                 canMove = true;
                 canSprint = true;
-                canCrouch = false;
+                canCrouch = true;
                 canFight = true;
                 canAttack = false;
                 break;
@@ -151,7 +146,7 @@ public class PlayerMovement : MonoBehaviour
                 canMove = true;
                 canSprint = true;
                 canCrouch = true;
-                canFight = false;
+                canFight = true;
                 canAttack = false;
                 break;
             case STATE.COMBAT:
@@ -214,7 +209,6 @@ public class PlayerMovement : MonoBehaviour
         //idle
         if (!isMoving)
         {
-            noise = 0;
             targetSpeed = 0;
         }
 
@@ -227,21 +221,23 @@ public class PlayerMovement : MonoBehaviour
         //move
         if (canMove && isMoving)
         {   
-            noise = 10;
-            Vector3 direction = transform.right * _input.move.x + transform.forward * _input.move.y;
             float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.transform.eulerAngles.y, ref rotationVelocity, rotationSpeed);
             Quaternion targetRotation = Quaternion.Euler(0, rotation, 0);
             transform.rotation = targetRotation;
-
-            _controller.Move(direction.normalized * (speed * Time.deltaTime) + new Vector3(0.0f, verticalVelocity, 0.0f) * Time.deltaTime);
         }
+        Vector3 direction = transform.right * _input.move.x + transform.forward * _input.move.y;
+        _controller.Move(direction.normalized * (speed * Time.deltaTime) + new Vector3(0.0f, verticalVelocity, 0.0f) * Time.deltaTime);
 
         //sprint
         if (canSprint && isRunning && !isFighting)
         {
             if (isMoving)
             {
-                noise = 20;
+                if(!noiseGenerated)
+                {
+                    StartCoroutine(CreateNoise());
+                    Debug.Log("noise created");
+                }
                 ChangeState(STATE.SPRINT);
                 targetSpeed = sprintSpeed;
                 _input.crouch = false;
@@ -253,25 +249,25 @@ public class PlayerMovement : MonoBehaviour
         }
 
         //crouch
+
         if (canCrouch && isCrouched)
         {
-            noise = 0;
             ChangeState(STATE.CROUCH);
-            _playerCameraRoot.transform.position = new Vector3(transform.position.x, 0.8f, transform.position.z + 0.2f);
-            
+            _playerCameraRoot.transform.position = new Vector3(transform.position.x, transform.position.y + 0.6f, transform.position.z);
+            //_input.combat = false;
             targetSpeed = isMoving ? sneakSpeed : 0;
+            _playerHead.transform.position = new Vector3(transform.position.x, transform.position.y + 0.8f, transform.position.z);
         }
         else
         {
-            _playerCameraRoot.transform.position = new Vector3(transform.position.x, 1.3f, transform.position.z);
+            _playerCameraRoot.transform.position = new Vector3(transform.position.x, transform.position.y + 1.2f, transform.position.z);
+            _playerHead.transform.position = new Vector3(transform.position.x, transform.position.y + 1.5f, transform.position.z);
         }
         
         //combat
         if (canFight && isFighting)
         {
             _unsheathedWeapon.SetActive(true);
-            _sheathedWeapon.SetActive(false);
-            noise = 20;
             ChangeState(STATE.COMBAT);
             _input.crouch = false;
 
@@ -295,7 +291,6 @@ public class PlayerMovement : MonoBehaviour
         else
         {
             _unsheathedWeapon.SetActive(false);
-            _sheathedWeapon.SetActive(true);
         }
 
         //attack
@@ -369,28 +364,15 @@ public class PlayerMovement : MonoBehaviour
         ChangeState(STATE.COMBAT);
     }
 
-   /* IEnumerator Attack2()
+    IEnumerator CreateNoise()
     {
-        attack2HasStarted = true;
-        _animator.SetTrigger(_animation.attack2);
-        Debug.Log("attack 2");
-
-        yield return new WaitForSeconds(attackCoolDown);
-        if (isAttacking)
-        {
-            if (!attack3HasStarted)
-            {
-                StartCoroutine(Attack3());
-                ChangeState(STATE.ATTACK3);
-            }
-        }
-        else
-        {
-            attack1HasStarted = false;
-            attack2HasStarted = false;
-            ChangeState(STATE.COMBAT);
-        }
-    }*/
+        noiseGenerated = true;
+        Instantiate(_noiseSpot, transform.position, transform.rotation);
+        noiseLocation = _noiseSpot.transform.position;
+        yield return new WaitForSeconds(0.2f);
+        noiseGenerated = false;
+    }
+    
 
     private void JumpAndGravity()
     {
@@ -449,6 +431,11 @@ public class PlayerMovement : MonoBehaviour
     public void ChangeState(STATE newState)
     {
         currentState = newState;
+    }
+
+    public void ChangeStatus(STATUS newStatus)
+    {
+        currentStatus = newStatus;
     }
 
     private void OnDrawGizmosSelected()

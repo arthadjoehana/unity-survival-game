@@ -60,6 +60,24 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "Pickpocket",
+                    "type": "Button",
+                    "id": "a0502862-fc42-4d16-91ed-18702ebd5325",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Assassinate",
+                    "type": "Button",
+                    "id": "3e40f06c-3f94-4fa7-8477-4a183b402745",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Attack",
                     "type": "PassThrough",
                     "id": "1e4565ab-1e75-4c62-8b09-8b58542c525b",
@@ -81,6 +99,15 @@
                     "name": "Combat",
                     "type": "Button",
                     "id": "94cc4d1e-b07b-476a-9d11-46a208fde3b1",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Pause",
+                    "type": "Button",
+                    "id": "02a49603-4eb9-41d6-b414-8f575d1d9007",
                     "expectedControlType": "Button",
                     "processors": "",
                     "interactions": "",
@@ -316,6 +343,39 @@
                     "processors": "",
                     "groups": "KeyboardMouse",
                     "action": "Combat",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "20c91791-7385-4f8f-8ae6-26d25ea31f9c",
+                    "path": "<Keyboard>/p",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "KeyboardMouse",
+                    "action": "Pause",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "9cc3c257-24cd-4af8-98e0-1bd5dc9fff6e",
+                    "path": "<Keyboard>/b",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "KeyboardMouse",
+                    "action": "Pickpocket",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "d5378484-6552-40c1-9588-8c43a7cd1db8",
+                    "path": "<Keyboard>/v",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "KeyboardMouse",
+                    "action": "Assassinate",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

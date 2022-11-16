@@ -1,50 +1,33 @@
 using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.UIElements;
-using UnityEngine.Windows;
+
 
 public class EnemyAI : MonoBehaviour
 {
-    [Header("References")]
-
+    //ref
     [SerializeField] EnemyStatsReference _enemyStatsRef;
     [SerializeField] NavMeshAgent _agent;
-    [SerializeField] GameObject _player;
     [SerializeField] Animator _animator;
     [SerializeField] AnimationScript _animation;
     [SerializeField] Collider _collider;
     [SerializeField] EnemyHealth _enemyHealth;
+    [SerializeField] Detection _detection;
 
+    [SerializeField] GameObject _player;
     [SerializeField] PlayerStatsReference _playerStatsRef;
     [SerializeField] PlayerLevel _playerLevel;
     [SerializeField] PlayerMovement _playerMovement;
     [SerializeField] PlayerHealth _playerHealth;
 
     //movement values
-    [SerializeField] private float walkSpeed;
-    [SerializeField] private float chaseSpeed;
-    [SerializeField] private float rotationSpeed;
-
-    //detection values
-    [SerializeField] private float stealthDetection;
-    [SerializeField] private float detectionRadius;
-    [SerializeField] private float visionRadius;
-    [Range(0, 360)]
-    [SerializeField] private float visionAngle;
+    [SerializeField] public float walkSpeed;
+    [SerializeField] public float chaseSpeed;
+    [SerializeField] public float rotationSpeed;
 
     //combat values
-    [SerializeField] private float combatRadius;
-    [SerializeField] private float attackRadius;
-    [Range(0, 360)]
-    [SerializeField] private float attackAngle;
     [SerializeField] public float attackDelay;
-    
-    //other values
-    private Vector3 playerDirection;
-    private float playerAngle;
 
     //wandering settings
     [SerializeField] private float wanderingWaitTimeMin;
@@ -55,10 +38,12 @@ public class EnemyAI : MonoBehaviour
     public enum STATE
     {
         BEHAVIOUR, 
+        INVESTIGATE,
+        SEARCH,
         CHASE, 
         COMBAT,
         ATTACK, 
-        RETURNTOPOSITION, 
+        IDLE, 
         WANDER, 
         PATROL, 
         SCRIPTED, 
@@ -68,164 +53,153 @@ public class EnemyAI : MonoBehaviour
 
     public enum BEHAVIOUR
     {
-        IDLE, WANDER, PATROL, SCRIPTED
+        IDLE, 
+        WANDER, 
+        PATROL, 
+        SCRIPTED
     }
     public BEHAVIOUR Behaviour;
 
     //movement
     private Vector3 originalPosition;
-    private bool hasDestination;
-    private bool noDirection;
+    public Vector3 investigationDestination;
+    public bool hasDestination;
+    public bool hasInvestigationDestination;
+    public bool noDirection;
 
     //states
     public bool isAttacking;   
-    private bool isDead;
-
-    //player detection
-    private bool obstacle;
-    private bool playerInDetectionRange;
-    private bool playerInCombatRange;
-    private bool playerInAttackRange;
-    private bool playerInFront;
-    private bool playerInSight;
-    private bool playerDetected;
-    private bool playerStealthCheck;
-    private bool playerIsAlive;
+    public bool isDead;
 
     private void Start()
     {
         originalPosition = transform.position;
-        playerIsAlive = true;
+        _detection.playerIsAlive = true;
         isDead = false;
     }
 
     void Update()
     {
-        playerIsAlive = _playerHealth.playerHealth > 0;
-        playerDirection = _player.transform.position - transform.position;
-        playerAngle = Vector3.Angle(playerDirection, transform.forward);
-        playerInDetectionRange = Vector3.Distance(_player.transform.position, transform.position) < detectionRadius;
-        playerInCombatRange = Vector3.Distance(_player.transform.position, transform.position) < combatRadius;
-        playerInAttackRange = Vector3.Distance(_player.transform.position, transform.position) < attackRadius;
-        playerInFront = playerAngle < attackAngle;
-        playerInSight = playerDirection.magnitude < visionRadius && playerAngle < visionAngle;
-        playerStealthCheck =  stealthDetection > _playerMovement.totalStealth;
         noDirection = _agent.remainingDistance < 0.75f && !hasDestination;
+        _animator.SetFloat(_animation.speed, _agent.velocity.magnitude);
 
         switch (currentState)
         {
             case STATE.BEHAVIOUR:
-                ChangeStateBasedOnConf();
+                BehaviourState();
                 break;
 
             case STATE.CHASE:
-                _agent.speed = chaseSpeed;
-                _agent.isStopped = false;
-                if (playerIsAlive)
-                {
-                    if (playerDetected || playerInDetectionRange)
-                    {
-                        _agent.SetDestination(_player.transform.position);
-                    }
+                Chase();
+                break;
 
-                    if (playerInCombatRange && playerDetected)
-                    {    
-                        ChangeState(STATE.COMBAT);
-                    }
-                }
-                else
-                {
-                    ChangeStateBasedOnConf();
-                }
-
+            case STATE.INVESTIGATE:
+                Investigate();
+                break;
+            case STATE.SEARCH:
+                Search();
                 break;
 
             case STATE.COMBAT:
-                if (playerIsAlive)
-                {
-                    if (playerInCombatRange)
-                    {
-                        _animator.SetBool(_animation.combat, true);
-                        _agent.speed = walkSpeed;
-
-                        if (playerInAttackRange)
-                        {
-                            _agent.isStopped = true;
-                            if (!isAttacking && playerInFront)
-                            {
-                                StartCoroutine(AttackPlayer());
-                            }
-                            else
-                            {
-                                Quaternion rotation = Quaternion.LookRotation(_player.transform.position - transform.position);
-                                transform.rotation = Quaternion.Slerp(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
-                            }
-                        }
-                        else if (!isAttacking)
-                        {
-                            _agent.isStopped = false;
-                            _agent.SetDestination(_player.transform.position);
-                            Quaternion rotation = Quaternion.LookRotation(_player.transform.position - transform.position);
-                            transform.rotation = Quaternion.Slerp(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
-                        }
-                    }
-                    else
-                    {
-                        _animator.SetBool(_animation.combat, false);
-                        ChangeState(STATE.CHASE);
-                    }
-                }
-                else
-                {
-                    _animator.SetBool(_animation.combat, false);
-                    ChangeStateBasedOnConf();
-                }
+                Combat();
                 break;
 
-            case STATE.RETURNTOPOSITION:
-                _agent.SetDestination(originalPosition);
+            case STATE.IDLE:
+                Idle();
                 break;
 
             case STATE.WANDER:
-                _agent.speed = walkSpeed;
-                _agent.isStopped = false;
-                if (noDirection)
-                {
-                    StartCoroutine(GetNewDestination());
-                }
-                if (playerDetected && playerIsAlive)
-                {
-                    ChangeState(STATE.CHASE);
-                }
+                Wander();
                 break;
 
             case STATE.PATROL:
+                //Patrol();
                 break;
 
             case STATE.SCRIPTED:
+                //ScriptedBehaviour();
                 break;
 
             case STATE.ATTACK:
-
+                StartCoroutine(AttackPlayer());
                 break;
-            case STATE.DEAD:
 
+            case STATE.DEAD:
+                Die();
                 break;
         }
 
-        DetectPlayer();
-        Die();
+        if (!isDead)
+        {
+            //rotate to face the player's direction while in field of view
+            if (_detection.playerInFieldOfView && !_detection.visionObstructed && !_detection.playerisHidden)
+            {
+                Quaternion rotation = Quaternion.LookRotation(_player.transform.position - transform.position);
+                transform.rotation = Quaternion.Slerp(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
+            }
 
-        _animator.SetFloat(_animation.speed, _agent.velocity.magnitude);
+            if (_detection.playerIsAlive && !_detection.playerisHidden)
+            {
+                if (_detection.playerDetected)
+                {
+                    Quaternion rotation = Quaternion.LookRotation(_player.transform.position - transform.position);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, rotation, rotationSpeed * Time.deltaTime);
 
+                    if (_detection.playerInAttackRange)
+                    {
+                        ChangeState(STATE.ATTACK);
+                    }
+                    else if (_detection.playerInCombatRange)
+                    {
+                        ChangeState(STATE.COMBAT);
+                    }
+                    else
+                    {
+                        if (_playerMovement.currentStatus == PlayerMovement.STATUS.ANONYMOUS)
+                        {
+                            ChangeState(STATE.INVESTIGATE);
+                        }
+                        if (_playerMovement.currentStatus == PlayerMovement.STATUS.SUSPICIOUS)
+                        {
+                            ChangeState(STATE.CHASE);
+                            _detection.isAlert = true;
+                        }
+                        if (_playerMovement.currentStatus == PlayerMovement.STATUS.COMPROMISED)
+                        {
+                            ChangeState(STATE.CHASE);
+                            _detection.isAlert = true;
+                        }
+                    }
+                }
+            }
+            else if (!hasInvestigationDestination)
+            {
+                ChangeState(STATE.SEARCH);
+            }
+        }
+
+        //animations
+        if (currentState == STATE.COMBAT)
+        {
+            _animator.SetBool(_animation.combat, true);
+        }
+        else
+        {
+            _animator.SetBool(_animation.combat, false);
+        }
     }
 
-    private void ChangeStateBasedOnConf()
+    public void ChangeState(STATE newState)
+    {
+        currentState = newState;
+    }
+
+    private void BehaviourState()
     {
         switch (Behaviour)
         {
             case BEHAVIOUR.IDLE:
-                ChangeState(STATE.RETURNTOPOSITION);
+                ChangeState(STATE.IDLE);
                 break;
             case BEHAVIOUR.WANDER:
                 ChangeState(STATE.WANDER);
@@ -234,66 +208,74 @@ public class EnemyAI : MonoBehaviour
                 ChangeState(STATE.PATROL);
                 break;
             case BEHAVIOUR.SCRIPTED:
-                ChangeState(STATE.RETURNTOPOSITION);
+                ChangeState(STATE.SCRIPTED);
                 break;
             default:
                 break;
         }
     }
 
-    void DetectPlayer()
+    private void Investigate()
     {
-        obstacle = Physics.Raycast(transform.position, playerDirection, out var hit, playerDirection.magnitude, LayerMask.GetMask("Obstacle"));
+        _agent.speed = walkSpeed;
+        _agent.isStopped = false;
 
-        if (playerIsAlive)
+        if (!hasInvestigationDestination)
         {
-            if (obstacle)
-            {
-                Debug.Log(hit.collider.name);
-                Debug.DrawRay(transform.position, playerDirection, Color.red, 0.5f);
-                playerDetected = false;
-                return;
-            }
-
-            if (playerInSight)
-            {
-                Debug.DrawRay(transform.position, playerDirection, Color.green, 0.5f);
-                playerDetected = true;
-            }
-            if (playerInAttackRange)
-            {
-                Debug.DrawRay(transform.position, playerDirection, Color.green, 0.5f);
-                playerDetected = true;
-            }
-            else
-            {
-                if (playerInDetectionRange && playerStealthCheck)
-                {
-                    if (obstacle)
-                    {
-                        Debug.Log(hit.collider.name);
-                        Debug.DrawRay(transform.position, playerDirection, Color.red, 0.5f);
-                        playerDetected = false;
-                        return;
-                    }
-                    else
-                    {
-                        Debug.DrawRay(transform.position, playerDirection, Color.green, 0.5f);
-                        playerDetected = true;
-                    }
-                }
-                else
-                {
-                    Debug.DrawRay(transform.position, playerDirection, Color.red, 0.5f);
-                    playerDetected = false;
-                }
-            }
+            hasInvestigationDestination = true;
+            investigationDestination = _player.transform.position;
         }
-        else
+        _agent.SetDestination(investigationDestination);
+        if (_agent.remainingDistance < 0.75f)
         {
-            playerDetected = false;
+            hasInvestigationDestination = false;
         }
+    }
 
+    private void Search()
+    {
+        _agent.speed = walkSpeed;
+        _agent.isStopped = false;
+        if (noDirection)
+        {
+            StartCoroutine(GetNewDestination());
+        }
+        StartCoroutine(SearchTimer());
+    }
+
+    private void Chase()
+    {
+        _agent.speed = chaseSpeed;
+        _agent.isStopped = false;
+        _agent.SetDestination(_player.transform.position);
+    }
+
+    private void Combat()
+    {
+        _agent.speed = walkSpeed;
+        _agent.isStopped = false;
+
+        if (!isAttacking)
+        {
+            _agent.SetDestination(_player.transform.position);
+        }
+    }
+    
+    private void Idle()
+    {
+        _agent.speed = walkSpeed;
+        _agent.isStopped = false;
+        _agent.SetDestination(originalPosition);
+    }
+
+    private void Wander()
+    {
+        _agent.speed = walkSpeed;
+        _agent.isStopped = false;
+        if (noDirection)
+        {
+            StartCoroutine(GetNewDestination());
+        }
     }
 
     IEnumerator GetNewDestination()
@@ -312,56 +294,39 @@ public class EnemyAI : MonoBehaviour
         hasDestination = false;
     }
 
+    IEnumerator SearchTimer()
+    {
+        yield return new WaitForSeconds(20);
+        if (!_detection.playerDetected)
+        {
+            BehaviourState();
+        }
+    }
+
     IEnumerator AttackPlayer()
     {
-        isAttacking = true;
-        _agent.isStopped = true;
+        if (!isAttacking)
+        {
+            isAttacking = true;
+            _agent.isStopped = true;
 
-        _animator.SetTrigger(_animation.attack);
-        
-        yield return new WaitForSeconds(attackDelay);
+            _animator.SetTrigger(_animation.attack);
 
-        isAttacking = false;
-        _agent.isStopped = false;
+            yield return new WaitForSeconds(attackDelay);
+
+            isAttacking = false;
+            _agent.isStopped = false;
+        }
     }
 
-    void Die()
+    public void Die()
     {
-        if (_enemyHealth.currentHealth <= 0)
-            if (!isDead)
-            {
-                ChangeState(STATE.DEAD);
-                _animator.SetTrigger(_animation.death);
-                isDead = true;
-                _collider.enabled = false;
-                _playerStatsRef.exp += _enemyStatsRef.exp;
-                _playerLevel.UpdateExp();
-            }
-        
-    }
-
-    private void OnDrawGizmos()
-    {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, detectionRadius);
-
-        Gizmos.color = Color.white;
-        Gizmos.DrawWireSphere(transform.position, visionRadius);
-        Gizmos.DrawLine(transform.position, transform.position + (Quaternion.Euler(0, visionAngle, 0) * transform.forward  * visionRadius));
-        Gizmos.DrawLine(transform.position, transform.position + (Quaternion.Euler(0, -visionAngle, 0) * transform.forward * visionRadius));
-
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, combatRadius);
-
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRadius);
-        Gizmos.DrawLine(transform.position, transform.position + (Quaternion.Euler(0, attackAngle, 0) * transform.forward * attackRadius));
-        Gizmos.DrawLine(transform.position, transform.position + (Quaternion.Euler(0, -attackAngle, 0) * transform.forward * attackRadius));
-    }
-
-    
-    public void ChangeState(STATE newState)
-    {
-        currentState = newState;
+        if (!isDead)
+        {
+            _animator.SetTrigger(_animation.death);
+            isDead = true;
+            _collider.enabled = false;
+            _playerLevel.ExpUp(_enemyStatsRef.exp);
+        }
     }
 }
